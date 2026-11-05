@@ -295,7 +295,7 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
 /* ===== Firebase sync layer: يزامن بيانات الموقع (qaqa_*) مع Firestore ===== */
 (function(){
 var cfg={apiKey:'AIzaSyAaklzt1UpQ2GRBMu9YrjoJk8LbdNXoF7Q',authDomain:'al-qaqa-bd1b7.firebaseapp.com',projectId:'al-qaqa-bd1b7',storageBucket:'al-qaqa-bd1b7.firebasestorage.app',messagingSenderId:'815526380054',appId:'1:815526380054:web:f40638ce40b958043aeb37'};
-var LOCAL=/^(qaqa_active_account|qaqa_all_accounts|qaqa_welcomed|qaqa_anamode|qaqa_biometric_|qa_theme)/;
+var LOCAL=/^(qaqa_ui|qaqa_active_account|qaqa_all_accounts|qaqa_welcomed|qaqa_anamode|qaqa_biometric_|qa_theme)/;
 function shared(k){return !!k&&!LOCAL.test(k)&&!/^(firebase|__|loglevel)/i.test(k)}
 function fid(k){return encodeURIComponent(k).replace(/%/g,'_')}
 if(!window.firebase){console.warn('Firebase SDK not loaded');return}
@@ -312,7 +312,7 @@ window.__qaqaHook=function(w){try{var P=w.Storage.prototype;if(P.__h)return;P.__
  P.setItem=function(k,v){rs.apply(this,arguments);if(this===w.localStorage&&!applying&&shared(k))push(k,String(v))};
  P.removeItem=function(k){rr.apply(this,arguments);if(this===w.localStorage&&!applying&&shared(k)&&ready)db.collection('kv').doc(fid(k)).delete().catch(function(){})}}catch(e){}};
 new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.tagName==='IFRAME'||(n.querySelectorAll&&n.querySelector('iframe'))){(n.tagName==='IFRAME'?[n]:n.querySelectorAll('iframe')).forEach(function(f){f.addEventListener('load',function(){window.__qaqaHook(f.contentWindow)})})}})})}).observe(document.documentElement,{childList:true,subtree:true});
-new Promise(function(res){var un=auth.onAuthStateChanged(function(u){un();res(u)})}).then(function(u){return u?u:auth.signInAnonymously()}).then(function(){
+new Promise(function(res){var un=auth.onAuthStateChanged(function(u){un();res(u)})}).then(function(u){return u}).then(function(){
   return db.collection('kv').get();
 }).then(function(snap){
   var changed=false;applying=true;
@@ -337,7 +337,7 @@ new Promise(function(res){var un=auth.onAuthStateChanged(function(u){un();res(u)
 </head><body>
 <div id="waNotif"><div style="width:44px;height:44px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;flex:0 0 44px"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div><div style="flex:1;text-align:right"><b id="waNotifName" style="color:#fff">اسم</b><br><small id="waNotifText" style="color:#CBD5E1">رسالة</small></div><div style="display:flex;gap:6px;flex-direction:column"><button class="wa-btn view" onclick="waViewMsg()">عرض</button><button class="wa-btn read" onclick="waMarkRead()">مقروءة</button></div></div>
 <div id="gateBox" class="container"><div class="gate-box"><div style="text-align:center;padding:12px 10px;line-height:1.9;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:14px"><div style="font-family:'Amiri',serif;font-size:16px;font-weight:700">السلام عليكم ورحمة الله تعالى وبركاته</div><div style="font-size:13px">حياكم الله</div><div style="font-size:26px;font-weight:900;color:var(--blue2)">القعقاع | Al-Qaqa</div><div style="font-size:13px;font-weight:700;color:var(--blue2)">منصة جهادية ودعوية</div><div style="font-size:13px;color:var(--muted)">استمتعو في اكتشافها - لاتنسونا من دعائكم</div><div style="font-size:11px;color:var(--muted);opacity:0.55">المطور: زمزم ابو القعقاع</div></div><button class="gate-btn primary" onclick="showGateForm('login')">تسجيل دخول</button><button class="gate-btn secondary" onclick="showGateForm('create')">انشاء حساب</button><button class="gate-btn secondary" style="background:#fff;color:#1f2937;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:8px" onclick="loginWithGoogle()"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>الدخول عبر Google</button><button class="gate-btn secondary" style="background:transparent;border:1px dashed var(--blue)" onclick="enterAsGuest()">الدخول كضيف</button></div></div>
-<div id="authBox" class="container hidden"><h1>القعقاع | Al-Qaqa</h1><div class="card"><button class="back-btn" onclick="backToGate()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> رجوع</button><div id="createForm" class="hidden"><div class="pic-circle-wrap"><div class="pic-circle" onclick="document.getElementById('pic').click()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><small style="font-size:11px">صورة</small><img id="picPreview" class="hidden"></div></div><input type="file" id="pic" accept="image/*" class="hidden" onchange="previewPic(this)"><label>الاسم *</label><input id="firstName"><label>اللقب *</label><input id="lastName"><label>اسم المستخدم *</label><input id="username" placeholder="مثال: @ahk_wg"><label>الدولة *</label><select id="country" onchange="updateStates()"><option>سوريا</option><option>لبنان</option><option>الأردن</option><option>فلسطين</option><option>العراق</option><option>السعودية</option><option>اليمن</option><option>مصر</option><option>تركيا</option></select><label>المحافظة *</label><select id="state"></select><label>المواليد * 1950-2012</label><select id="birth"></select><label>الجنس</label><div class="gender-row"><div class="gender-btn" onclick="setGender('ذكر',this)">ذكر</div><div class="gender-btn" onclick="setGender('أنثى',this)">أنثى</div></div><label>الإيميل *</label><input id="regEmail" type="email" dir="ltr" style="text-align:left" placeholder="name@example.com"><label>كلمة المرور * (6 أحرف على الأقل)</label><div class="pass-wrap"><input id="regPassword" type="password" placeholder="حط كلمة مرور"><div class="finger-btn" onclick="registerFingerprint()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .13-5.35 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg></div></div><button class="btn-create" onclick="enterApp()">انشاء الحساب</button></div><div id="loginForm" class="hidden"><label>اسم المستخدم او ID او الإيميل</label><input id="loginUser" placeholder="alqaqa او QAQA-123456 او name@example.com"><label>كلمة المرور</label><div class="pass-wrap"><input id="loginPass" type="password" placeholder="كلمة المرور"><div class="finger-btn" onclick="loginWithFingerprint()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .13-5.35 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg></div></div><button class="btn-create" onclick="doLogin()">تسجيل دخول</button><p style="text-align:center;margin-top:12px"><a href="#" onclick="forgotPassword();return false" style="color:var(--blue2);font-size:13px">نسيت كلمة المرور؟</a></p><div id="resetBox" class="hidden" dir="rtl"><p id="resetMsg" style="color:var(--blue2);text-align:center;margin-top:12px;font-size:14px"></p><div id="resetStep2" class="hidden"><label>ادخل الكود (5 ارقام)</label><input id="resetCodeInput" type="text" inputmode="numeric" maxlength="5" dir="ltr" style="text-align:center;letter-spacing:6px" placeholder="_ _ _ _ _"><button class="btn-create" onclick="verifyResetCode()">تأكيد</button></div><div id="resetStep3" class="hidden"><label>كلمة السر الجديدة (6 أحرف على الأقل)</label><input id="resetNewPass" type="password" placeholder="كلمة السر الجديدة"><button class="btn-create" onclick="doResetPassword()">تغيير كلمة السر</button></div></div><p id="loginErr" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div><p id="err" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div></div>
+<div id="authBox" class="container hidden"><h1>القعقاع | Al-Qaqa</h1><div class="card"><button class="back-btn" onclick="backToGate()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> رجوع</button><div id="createForm" class="hidden"><div class="pic-circle-wrap"><div class="pic-circle" onclick="document.getElementById('pic').click()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><small style="font-size:11px">صورة</small><img id="picPreview" class="hidden"></div></div><input type="file" id="pic" accept="image/*" class="hidden" onchange="previewPic(this)"><label>الاسم *</label><input id="firstName"><label>اللقب *</label><input id="lastName"><label>اسم المستخدم *</label><input id="username" placeholder="مثال: @ahk_wg"><label>الدولة *</label><select id="country" onchange="updateStates()"><option>سوريا</option><option>لبنان</option><option>الأردن</option><option>فلسطين</option><option>العراق</option><option>السعودية</option><option>اليمن</option><option>مصر</option><option>تركيا</option></select><label>المحافظة *</label><select id="state"></select><label>المواليد * 1950-2012</label><select id="birth"></select><label>الجنس</label><div class="gender-row"><div class="gender-btn" onclick="setGender('ذكر',this)">ذكر</div><div class="gender-btn" onclick="setGender('أنثى',this)">أنثى</div></div><label>الإيميل *</label><input id="regEmail" type="email" dir="ltr" style="text-align:left" placeholder="name@example.com"><label>كلمة المرور * (6 أحرف على الأقل)</label><div class="pass-wrap"><input id="regPassword" type="password" placeholder="حط كلمة مرور"><div class="finger-btn" onclick="registerFingerprint()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .13-5.35 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg></div></div><button class="btn-create" onclick="enterApp()">انشاء الحساب</button></div><div id="loginForm" class="hidden"><label>اسم المستخدم او ID او الإيميل</label><input id="loginUser" placeholder="alqaqa او QAQA-123456 او name@example.com"><label>كلمة المرور</label><div class="pass-wrap"><input id="loginPass" type="password" placeholder="كلمة المرور"><div class="finger-btn" onclick="loginWithFingerprint()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .13-5.35 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg></div></div><button class="btn-create" onclick="doLogin()">تسجيل دخول</button><p style="text-align:center;margin-top:12px"><a href="#" onclick="forgotPassword();return false" style="color:var(--blue2);font-size:13px">نسيت كلمة المرور؟</a></p><p id="loginErr" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div><p id="err" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div></div>
 <div id="mainApp" class="hidden"><div class="container"><div id="globalHeader" class="global-header"><div class="header-left"><div class="header-btn" onclick="goPage('settings',null)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div><div class="header-btn" onclick="toggleTheme()"><span id="themeIcon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span></div><div class="header-btn" onclick="goPage('notifs',null)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><div id="notifDot" class="dot hidden"></div></div><div class="header-btn" onclick="goPage('searchpage',null)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div></div><div class="header-title">القعقاع | Al-Qaqa<small>Al-Qaqa</small></div><div style="position:relative"><div class="header-avatar" id="headerAvatar" onclick="toggleAccountsDropdown(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div><div id="accountsDropdown" class="accounts-dropdown hidden"></div></div></div><div id="marqueeBar" class="marquee-bar"><div class="marquee-track">عن أبي بكر قال: قال رسول الله ﷺ: «ما ترك قوم الجهاد إلا عمهم الله بالعذاب» &nbsp; • &nbsp; عن أبي بكر قال: قال رسول الله ﷺ: «ما ترك قوم الجهاد إلا عمهم الله بالعذاب»</div></div>
 <div class="dhikr-bar"><div class="dhikr-track"><div class="dhikr-grp"><span>سبحان الله وبحمده</span><i>|</i><span>سبحان الله العظيم</span><i>|</i><span>اللهم جهاد في سبيلك وابتغاء لمرضاتك</span><i>|</i><span>الأقصى ينتظركم فتجهزو</span><i>|</i></div><div class="dhikr-grp"><span>سبحان الله وبحمده</span><i>|</i><span>سبحان الله العظيم</span><i>|</i><span>اللهم جهاد في سبيلك وابتغاء لمرضاتك</span><i>|</i><span>الأقصى ينتظركم فتجهزو</span><i>|</i></div></div></div>
 <div id="page-settings" class="page hidden"><button class="back-btn" onclick="goBack()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> رجوع</button><h2 style="text-align:center;color:#fff">اعدادات</h2><div class="post-box"><b style="color:#fff">حسابي الحالي</b><div id="currentAccountBox"></div><div id="otherAccountsBox" class="hidden"></div><button id="toggleAccountsBtn" class="add-btn" style="background:var(--card2);border:1px solid var(--blue);color:var(--blue2);padding:10px" onclick="toggleOtherAccounts()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="m6 9 6 6 6-6"/></svg> عرض كل حساباتي</button></div><div class="set-item" onclick="goPage('terms',null)"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg> الشروط والاحكام</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></div><div class="set-item" onclick="goPage('about',null)"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg> حول التطبيق</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></div><div class="set-item" onclick="window.open(TG_CONTACT,'_blank')"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg> تواصل معنا عبر تيليجرام</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></div><div class="set-item" onclick="goPage('feedback',null)"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/></svg> اقتراحات واراء - قيمنا</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></div><div class="set-item"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg> المظهر ليلي / نهاري</span><button onclick="toggleTheme()" style="padding:7px 12px;background:var(--blue);color:#fff;border:none;border-radius:20px;cursor:pointer">تبديل</button></div><div class="set-item" onclick="deleteAccount()" style="color:#ff5b5b"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg> حذف الحساب</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></div></div>
@@ -1886,22 +1886,62 @@ function mkProfile(fu){
  var p={username:un,firstName:nm[0]||un,lastName:nm.slice(1).join(' '),fullName:fu.displayName||un,id:'QAQA-'+Math.floor(100000+Math.random()*900000),country:'',state:'',birth:'',gender:'',password:'',pic:fu.photoURL||'',email:fu.email||'',uid:fu.uid};
  users.push(p);sl('qaqa_users_full',users);return p;}
 
+var ADMIN_EMAIL='ahmadobeed2007@gmail.com';
+var fdb=firebase.firestore();
+var authReady=new Promise(function(res){var un=auth.onAuthStateChanged(function(u){un();res(u)})});
+function isAdminUser(u){return !!(u&&u.email&&u.email.toLowerCase()===ADMIN_EMAIL&&u.emailVerified)}
+function lk(u){return (u||'').replace(/^@/,'').trim().toLowerCase()}
+function ukey(u){return encodeURIComponent(lk(u))}
+function afterLogin(user){if(isAdminUser(user)&&typeof window.openAdmin==='function')setTimeout(function(){window.openAdmin()},700)}
+
+/* يتأكد انو في مستند users/{uid} (للحسابات القديمة وحسابات Google) */
+async function ensureUserDoc(fu,prof){
+ try{var ref=fdb.collection('users').doc(fu.uid),s=await ref.get();if(s.exists)return;
+  var nm=(fu.displayName||'').trim().split(/\s+/);
+  var un=(prof&&prof.username)||(fu.email||'user').split('@')[0];
+  await ref.set({firstName:(prof&&prof.firstName)||nm[0]||un,lastName:(prof&&prof.lastName)||nm.slice(1).join(' '),username:un,usernameLower:lk(un),email:fu.email||'',photoURL:fu.photoURL||(prof&&prof.pic&&prof.pic.length<600000?prof.pic:''),createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+  try{await fdb.collection('usernames').doc(ukey(un)).set({uid:fu.uid})}catch(e){}
+ }catch(e){console.warn('ensureUserDoc',e&&e.code)}
+}
+
 /* Google */
 window.loginWithGoogle=async function(){
  try{var pr=new firebase.auth.GoogleAuthProvider();pr.setCustomParameters({prompt:'select_account'});
-  var r=await auth.signInWithPopup(pr);completeLogin(mkProfile(r.user));
+  var r=await auth.signInWithPopup(pr);var p=mkProfile(r.user);await ensureUserDoc(r.user,p);completeLogin(p);afterLogin(r.user);
  }catch(e){if(e&&(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request'))return;showModal('تعذر الدخول',msg(e));}};
 
-/* إنشاء حساب بالإيميل */
+/* إنشاء حساب: Auth ثم Firestore بنفس الـ UID */
 var _enter=window.enterApp;
 window.enterApp=async function(){
- var em=($g('regEmail').value||'').trim(),pw=$g('regPassword').value,u=$g('username').value.trim(),fn=$g('firstName').value.trim(),ln=$g('lastName').value.trim(),err=$g('err');
+ var em=($g('regEmail').value||'').trim(),pw=$g('regPassword').value,u=$g('username').value.trim().replace(/^@/,''),fn=$g('firstName').value.trim(),ln=$g('lastName').value.trim(),err=$g('err');
  if(!u||!pw||!fn||!ln||!em){err.innerText='عبي كل الحقول';return}
- var taken=gl('qaqa_users_full').some(function(x){return (x.username||'').toLowerCase()===u.toLowerCase()});
- if(taken){err.innerText='اسم المستخدم مأخوذ';return}
- try{var c=await auth.createUserWithEmailAndPassword(em,pw);window.__fbReg={email:em,uid:c.user.uid};err.innerText='';
- }catch(e){err.innerText=msg(e);return}
- _enter();};
+ if(lk(u).length<3){err.innerText='اسم المستخدم قصير (3 أحرف على الأقل)';return}
+ var id=ukey(u);
+ /* 1) فحص اسم المستخدم من Firestore بس */
+ try{var sn=await fdb.collection('usernames').doc(id).get();if(sn.exists){err.innerText='اسم المستخدم مأخوذ';return}}
+ catch(e){err.innerText='تعذر التحقق من اسم المستخدم، جرب مرة تانية';return}
+ /* 2) Auth */
+ var c;try{c=await auth.createUserWithEmailAndPassword(em,pw)}catch(e){err.innerText=msg(e);return}
+ var uid=c.user.uid,photo='';
+ try{if(typeof profilePicData==='string'&&profilePicData.length<600000)photo=profilePicData}catch(e){}
+ /* 3) Firestore: users/{uid} + usernames/{username} بعملية وحدة */
+ try{
+  await fdb.runTransaction(async function(tx){
+   var ref=fdb.collection('usernames').doc(id),s=await tx.get(ref);
+   if(s.exists)throw {code:'app/username-taken'};
+   tx.set(ref,{uid:uid});
+   tx.set(fdb.collection('users').doc(uid),{firstName:fn,lastName:ln,username:u,usernameLower:lk(u),email:em,photoURL:photo,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+  });
+ }catch(e){
+  /* فشل الحفظ: نرجّع كل شي لورا مشان ما يضل حساب يتيم بـ Auth */
+  try{await c.user.delete()}catch(_){}
+  err.innerText=(e&&e.code==='app/username-taken')?'اسم المستخدم مأخوذ':'تعذر حفظ الحساب، جرب مرة تانية';return}
+ try{c.user.sendEmailVerification()}catch(e){}
+ window.__fbReg={email:em,uid:uid};err.innerText='';
+ /* ما منخزّن كلمة السر الحقيقية بالتخزين المحلي */
+ var pe=$g('regPassword');pe.value='firebase-auth';
+ try{_enter()}finally{pe.value=''}
+ afterLogin(c.user);};
 var _cl=window.completeLogin;
 window.completeLogin=function(u){
  var r=window.__fbReg;
@@ -1916,80 +1956,59 @@ window.doLogin=async function(){
  var found=gl('qaqa_users_full').find(function(x){return (x.username||'').toLowerCase()===lu.toLowerCase()||x.id===lu});
  var email=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(lu)?lu:(found&&found.uid&&found.email?found.email:null);
  if(!email)return _dl();
- try{var r=await auth.signInWithEmailAndPassword(email,lp);err.innerText='';completeLogin(mkProfile(r.user));}
+ try{var r=await auth.signInWithEmailAndPassword(email,lp);err.innerText='';var p=mkProfile(r.user);await ensureUserDoc(r.user,p);completeLogin(p);afterLogin(r.user);}
  catch(e){err.innerText=msg(e)}};
 
-})();
-</script>
-<script>
-/* ===== نسيت كلمة المرور: كود 5 ارقام عبر Netlify Function (send-code) ===== */
-(function(){
-var $r=function(i){return document.getElementById(i)};
-var RESET={email:'',code:'',verified:false,busy:false};
-var EMAIL_RE=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-function gl(k){try{return JSON.parse(localStorage.getItem(k)||'[]')}catch(e){return[]}}
-function say(t,err){var m=$r('resetMsg');m.innerText=t;m.style.color=err?'#ff5b5b':'var(--blue2)'}
-function enDigits(v){return String(v||'').replace(/[\u0660-\u0669]/g,function(d){return d.charCodeAt(0)-0x0660}).replace(/[\u06F0-\u06F9]/g,function(d){return d.charCodeAt(0)-0x06F0}).replace(/\s+/g,'')}
-function resetUI(){RESET.code='';RESET.verified=false;$r('resetCodeInput').value='';$r('resetNewPass').value='';$r('resetStep2').classList.add('hidden');$r('resetStep3').classList.add('hidden')}
-
+/* نسيت كلمة المرور (الرابط بيرجّعك للموقع) */
 window.forgotPassword=async function(){
- if(RESET.busy)return;
- var lu=$r('loginUser').value.trim(),le=$r('loginErr');le.innerText='';
- var found=gl('qaqa_users_full').find(function(x){return (x.username||'').toLowerCase()===lu.toLowerCase()||x.id===lu});
- var email=lu.indexOf('@')>0?lu:(found&&found.email)||'';
- if(!EMAIL_RE.test(email)){le.innerText='اكتب الإيميل بخانة اسم المستخدم اول';return}
- RESET.busy=true;resetUI();RESET.email=email;
- $r('resetBox').classList.remove('hidden');say('عم نبعت الكود...');
+ var lu=$g('loginUser').value.trim(),found=gl('qaqa_users_full').find(function(x){return (x.username||'').toLowerCase()===lu.toLowerCase()||x.id===lu});
+ var email=lu.indexOf('@')>0?lu:(found&&found.email);
+ if(!email){$g('loginErr').innerText='اكتب الإيميل بخانة اسم المستخدم اول';return}
  try{
-  var res=await fetch('/.netlify/functions/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})});
-  var data=await res.json().catch(function(){return null});
-  if(!res.ok||!data||!data.success||!data.code)throw new Error('send-failed');
-  RESET.code=String(data.code);
-  say('تم ارسال كود من 5 ارقام الى ايميلك من القعقاع | Al-Qaqa');
-  $r('resetStep2').classList.remove('hidden');
-  $r('resetCodeInput').focus();
- }catch(e){resetUI();say('تعذر ارسال الكود، جرب مرة ثانية',true)}
- finally{RESET.busy=false}
-};
+  try{await auth.sendPasswordResetEmail(email,{url:location.origin+'/'})}
+  catch(e1){if(e1&&(e1.code==='auth/unauthorized-continue-uri'||e1.code==='auth/invalid-continue-uri'))await auth.sendPasswordResetEmail(email);else throw e1}
+  showModal('تم','بعتنالك رابط إعادة تعيين كلمة المرور على '+email);
+ }catch(e){$g('loginErr').innerText=msg(e)}};
 
-window.verifyResetCode=function(){
- var v=enDigits($r('resetCodeInput').value);
- if(!RESET.code){say('اطلب كود جديد اول',true);return}
- if(v===RESET.code){
-  RESET.verified=true;
-  say('الكود صحيح - حط كلمة السر الجديدة');
-  $r('resetStep2').classList.add('hidden');
-  $r('resetStep3').classList.remove('hidden');
-  $r('resetNewPass').focus();
- }else{
-  say('الكود غلط - اطلب كود جديد لانو الكود بيتغير كل مرة',true);
- }
-};
-
-window.doResetPassword=async function(){
- if(!RESET.verified||!RESET.email)return;
- var np=$r('resetNewPass').value;
- if(np.length<6){say('كلمة السر لازم تكون 6 أحرف على الأقل',true);return}
- var users=gl('qaqa_users_full'),em=RESET.email.toLowerCase();
- var u=users.find(function(x){return x.email&&x.email.toLowerCase()===em});
- if(u&&!u.uid){
-  u.password=np;localStorage.setItem('qaqa_users_full',JSON.stringify(users));
-  var ac=gl('qaqa_all_accounts');ac.forEach(function(x){if(x.id===u.id)x.password=np});
-  if(ac.length)localStorage.setItem('qaqa_all_accounts',JSON.stringify(ac));
-  resetUI();$r('resetBox').classList.add('hidden');
-  showModal('تم','تغيرت كلمة السر - فيك تسجل دخول هلا');
-  return;
- }
- /* حساب مربوط بـ Firebase: تغيير كلمة السر من المتصفح مو ممكن بدون تسجيل دخول، فبنستعمل رابط Firebase الرسمي */
- try{
-  if(!window.firebase)throw new Error('no-firebase');
-  await firebase.auth().sendPasswordResetEmail(RESET.email);
-  resetUI();$r('resetBox').classList.add('hidden');
-  showModal('تم التحقق','بعتنالك رابط رسمي على '+RESET.email+' لتعيين كلمة السر الجديدة');
- }catch(e){say('تعذر تغيير كلمة السر، جرب مرة ثانية',true)}
-};
+/* لوحة التحكم الموجودة بالموقع: لحسابك انت بس */
+var _oa=window.openAdmin;
+if(typeof _oa==='function'){window.openAdmin=function(){authReady.then(function(){
+ var u=auth.currentUser;
+ if(isAdminUser(u))_oa();
+ else if(u&&u.email&&u.email.toLowerCase()===ADMIN_EMAIL)showModal('فعّل الإيميل','افتح رابط التفعيل اللي وصلك على إيميلك، او سجّل دخول بحساب Google');
+ })}}
 })();
 </script>
 <script>(function(){var n=0,t=0;document.addEventListener('click',function(e){var el=e.target,ok=false;for(var i=0;i<4&&el&&el!==document.body;i++,el=el.parentElement){if((el.textContent||'').trim()==='القعقاع'){ok=true;break}}
  if(!ok){return}var now=Date.now();n=(now-t<1500)?n+1:1;t=now;if(n>=5){n=0;if(typeof window.openAdmin==='function')window.openAdmin();else{location.hash='#admin';location.reload()}}});
-document.addEventListener('visibilitychange',function(){if(!document.hidden&&window.__qaqaDirty){window.__qaqaDirty=0;location.reload()}});})();</script></body></html>
+document.addEventListener('visibilitychange',function(){var m=document.getElementById('mainApp');if(!document.hidden&&window.__qaqaDirty&&m&&!m.classList.contains('hidden')&&(typeof currentPage==='undefined'||currentPage==='home')&&!document.getElementById('admFr')&&!document.getElementById('modal')?.offsetParent){window.__qaqaDirty=0;location.reload()}});})();</script><script>
+/* ===== حفظ مكان المستخدم: لو راح للجيميل ورجع ما يرجع لأول الموقع ===== */
+(function(){
+var K='qaqa_ui',OK={home:1,isdarat:1,anashid:1,sowar:1,channels:1,notifs:1,messages:1,settings:1,searchpage:1};
+function rd(){try{var s=JSON.parse(localStorage.getItem(K)||'null');return s&&Date.now()-s.t<6*3600e3?s:null}catch(e){return null}}
+function wr(o){try{var s=rd()||{};for(var k in o)s[k]=o[k];s.t=Date.now();localStorage.setItem(K,JSON.stringify(s))}catch(e){}}
+function wrap(n,f){var o=window[n];if(typeof o!=='function')return;window[n]=function(){var r=o.apply(this,arguments);try{f.apply(null,arguments)}catch(e){}return r}}
+wrap('showGateForm',function(t){wr({screen:t})});
+wrap('backToGate',function(){wr({screen:'gate'})});
+wrap('backToAuth',function(){wr({screen:'gate'})});
+wrap('logout',function(){wr({screen:'gate'})});
+wrap('addNewAccount',function(){wr({screen:'gate'})});
+wrap('completeLogin',function(){wr({screen:'app',page:'home'})});
+wrap('enterAsGuest',function(){wr({screen:'app',page:'home'})});
+wrap('goPage',function(p){if(OK[p])wr({page:p})});
+wrap('goBack',function(){if(typeof currentPage!=='undefined'&&OK[currentPage])wr({page:currentPage})});
+['loginUser','firstName','lastName','username','regEmail'].forEach(function(id){var e=document.getElementById(id);if(e)e.addEventListener('input',function(){var s=rd()||{},d=s.f||{};d[id]=e.value;wr({f:d})})});
+/* استرجاع عند فتح الصفحة */
+try{
+ var s=rd();if(!s)return;
+ var acc=null;try{acc=JSON.parse(localStorage.getItem('qaqa_active_account')||'null')}catch(e){}
+ if((s.screen==='login'||s.screen==='create')&&!acc&&typeof window.showGateForm==='function'){
+  window.showGateForm(s.screen);
+  var d=s.f||{};Object.keys(d).forEach(function(id){var e=document.getElementById(id);if(e&&!e.value)e.value=d[id]});
+ }else if(s.screen==='app'&&acc&&s.page&&s.page!=='home'&&OK[s.page]&&!document.getElementById('mainApp').classList.contains('hidden')){
+  var nav=document.querySelector('.nav-item[onclick*="\''+s.page+'\'"]');window.goPage(s.page,nav);
+ }
+}catch(e){}
+})();
+</script>
+</body></html>

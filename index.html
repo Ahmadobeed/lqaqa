@@ -295,6 +295,21 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
+<script>
+(function(){
+function bar(t,ok){try{
+  var b=document.getElementById('qaDiag');
+  if(!b){b=document.createElement('div');b.id='qaDiag';
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:10px 14px;font:13px/1.5 system-ui;direction:ltr;text-align:left;white-space:pre-wrap;word-break:break-word;cursor:pointer';
+    b.onclick=function(){b.remove()};
+    (document.body||document.documentElement).appendChild(b)}
+  b.style.background=ok?'#14532d':'#7f1d1d';b.style.color='#fff';b.textContent=t;
+}catch(e){}}
+window.qaDiag=bar;
+window.addEventListener('error',function(e){bar('JS error: '+(e.message||'')+(e.lineno?' (line '+e.lineno+')':''))});
+window.addEventListener('unhandledrejection',function(e){var r=e.reason||{};bar('Promise error: '+(r.code||'')+' '+(r.message||r))});
+})();
+</script>
 <!-- ===== App Check (Compat) ===== -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js"></script>
 <script src="https://www.google.com/recaptcha/enterprise.js?render=6LeA0RIuAAAAAIKSPIJ3YplJSHAx0qfqKuD0v7_a"></script>
@@ -2053,58 +2068,38 @@ function mkProfile(fu){
  users.push(p);sl('qaqa_users_full',users);return p;}
 
 /* Google */
+function makeLocalProfile(fbUser){return mkProfile(fbUser)}
+window.makeLocalProfile=makeLocalProfile;
 window.loginWithGoogle = async function(){
+  if(window.qaDiag)qaDiag('جاري فتح نافذة جوجل...',true);
   try{
     var provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({prompt:'select_account'});
-    var result = await firebase.auth().signInWithPopup(provider);
+    var result = await auth.signInWithPopup(provider);
     var user = result.user;
-
-    await firebase.firestore().collection('profiles').doc(user.uid).set({
-      username: (user.email||'user').split('@')[0].toLowerCase().replace(/[^a-z0-9_.]/g,''),
-      firstName: user.displayName || '',
-      lastName: '',
-      fullName: user.displayName || '',
-      pic: user.photoURL || '',
-      bio: '',
-      joined: firebase.firestore.FieldValue.serverTimestamp(),
-      verified: false
-    }, {merge:true});
-
-    var localUser = makeLocalProfile(user);
-    completeLogin(localUser);
+    try{
+      var ref = firebase.firestore().collection('profiles').doc(user.uid);
+      var snap = await ref.get();
+      if(!snap.exists){
+        await ref.set({
+          username: (user.email||'user').split('@')[0].toLowerCase().replace(/[^a-z0-9_.]/g,''),
+          firstName: user.displayName || '',
+          lastName: '',
+          fullName: user.displayName || '',
+          pic: user.photoURL || '',
+          bio: '',
+          joined: firebase.firestore.FieldValue.serverTimestamp(),
+          verified: false
+        });
+      }
+    }catch(pe){console.warn('profile save failed',pe&&pe.code)}
+    var d=document.getElementById('qaDiag');if(d)d.remove();
+    completeLogin(mkProfile(user));
   }catch(e){
-    if(e.code==='auth/popup-closed-by-user')return;
-    showModal('تعذر الدخول', e.message);
+    console.warn('Google login error',e);
+    if(window.qaDiag)qaDiag('Google: '+((e&&e.code)||'')+'\n'+((e&&e.message)||e));
   }
 };
-
-function makeLocalProfile(fbUser, extra){
-  extra = extra || {};
-  var users = JSON.parse(localStorage.getItem('qaqa_users_full')||'[]');
-  var existing = users.find(function(x){return x.uid===fbUser.uid});
-
-  if(!existing){
-    existing = {
-      uid: fbUser.uid,
-      email: fbUser.email || '',
-      username: extra.username || (fbUser.email||'user').split('@')[0].toLowerCase().replace(/[^a-z0-9_.]/g,''),
-      firstName: extra.firstName || (fbUser.displayName||'').split(' ')[0] || '',
-      lastName: extra.lastName || '',
-      fullName: fbUser.displayName || '',
-      id: 'QAQA-'+Math.floor(100000+Math.random()*900000),
-      pic: fbUser.photoURL || '',
-      country:'', state:'', birth:'', gender:'',
-      password:''
-    };
-    users.push(existing);
-    localStorage.setItem('qaqa_users_full', JSON.stringify(users));
-  }
-  return existing;
-  }
- try{var pr=new firebase.auth.GoogleAuthProvider();pr.setCustomParameters({prompt:'select_account'});
-  var r=await auth.signInWithPopup(pr);completeLogin(mkProfile(r.user));
- }catch(e){if(e&&(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request'))return;showModal('تعذر الدخول',msg(e));}};
 
 /* إنشاء حساب بالإيميل */
 var _enter=window.enterApp;
@@ -2141,7 +2136,8 @@ window.doLogin=async function(){
 var $r=function(i){return document.getElementById(i)};
 var RESET={email:'',code:'',verified:false,busy:false,exp:0,tries:0,last:0};
 var EJS={service:'service_s16g069',template:'template_z9c9kcx',key:'eSAFoHEmlTM-RvrP-'};
-try{if(window.emailjs)emailjs.init({publicKey:EJS.key})}catch(e){}var EMAIL_RE=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+try{if(window.emailjs)emailjs.init(EJS.key)}catch(e){}
+var EMAIL_RE=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 function gl(k){try{return JSON.parse(localStorage.getItem(k)||'[]')}catch(e){return[]}}
 function say(t,err){var m=$r('resetMsg');m.innerText=t;m.style.color=err?'#ff5b5b':'var(--blue2)'}
 function enDigits(v){return String(v||'').replace(/[\u0660-\u0669]/g,function(d){return d.charCodeAt(0)-0x0660}).replace(/[\u06F0-\u06F9]/g,function(d){return d.charCodeAt(0)-0x06F0}).replace(/\s+/g,'')}
@@ -2154,19 +2150,19 @@ window.forgotPassword=async function(){
  var email=lu.indexOf('@')>0?lu:(found&&found.email)||'';
  if(!EMAIL_RE.test(email)){le.innerText='اكتب الإيميل بخانة اسم المستخدم اول';return}
  RESET.busy=true;resetUI();RESET.email=email;
- $r('resetBox').classList.remove('hidden');say('يتم إرسال الكود...');
+ $r('resetBox').classList.remove('hidden');say('عم نبعت الكود...');
  try{
   if(!window.emailjs)throw new Error('no-emailjs');
   var now=Date.now();
-  if(now-RESET.last<60000){say('انتظر دقيقة قبل ما تطلب كود جديد',true);RESET.busy=false;return}
+  if(now-RESET.last<60000){say('استنى دقيقة قبل ما تطلب كود جديد',true);RESET.busy=false;return}
   var arr=new Uint32Array(1);crypto.getRandomValues(arr);
   var code=String(100000+(arr[0]%900000));
-  await emailjs.send(EJS.service,EJS.template,{email:email,passcode:code});
+  await emailjs.send(EJS.service,EJS.template,{email:email,passcode:code},{publicKey:EJS.key});
   RESET.code=code;RESET.exp=Date.now()+10*60*1000;RESET.tries=0;RESET.last=Date.now();
   say('تم ارسال كود من 6 ارقام الى ايميلك من القعقاع | Al-Qaqa');
   $r('resetStep2').classList.remove('hidden');
   $r('resetCodeInput').focus();
- }catch(e){resetUI();say('تعذر ارسال الكود، جرب مرة ثانية',true)}
+ }catch(e){resetUI();var why=(e&&(e.text||e.message))||String(e);console.warn('EmailJS error',e);say('تعذر ارسال الكود: '+why,true)}
  finally{RESET.busy=false}
 };
 

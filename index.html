@@ -2141,8 +2141,7 @@ window.doLogin=async function(){
 var $r=function(i){return document.getElementById(i)};
 var RESET={email:'',code:'',verified:false,busy:false,exp:0,tries:0,last:0};
 var EJS={service:'service_s16g069',template:'template_z9c9kcx',key:'eSAFoHEmlTM-RvrP-'};
-try{if(window.emailjs)emailjs.init(EJS.key)}catch(e){}
-var EMAIL_RE=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+try{if(window.emailjs)emailjs.init({publicKey:EJS.key})}catch(e){}var EMAIL_RE=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 function gl(k){try{return JSON.parse(localStorage.getItem(k)||'[]')}catch(e){return[]}}
 function say(t,err){var m=$r('resetMsg');m.innerText=t;m.style.color=err?'#ff5b5b':'var(--blue2)'}
 function enDigits(v){return String(v||'').replace(/[\u0660-\u0669]/g,function(d){return d.charCodeAt(0)-0x0660}).replace(/[\u06F0-\u06F9]/g,function(d){return d.charCodeAt(0)-0x06F0}).replace(/\s+/g,'')}
@@ -2155,11 +2154,11 @@ window.forgotPassword=async function(){
  var email=lu.indexOf('@')>0?lu:(found&&found.email)||'';
  if(!EMAIL_RE.test(email)){le.innerText='اكتب الإيميل بخانة اسم المستخدم اول';return}
  RESET.busy=true;resetUI();RESET.email=email;
- $r('resetBox').classList.remove('hidden');say('عم نبعت الكود...');
+ $r('resetBox').classList.remove('hidden');say('يتم إرسال الكود...');
  try{
   if(!window.emailjs)throw new Error('no-emailjs');
   var now=Date.now();
-  if(now-RESET.last<60000){say('استنى دقيقة قبل ما تطلب كود جديد',true);RESET.busy=false;return}
+  if(now-RESET.last<60000){say('انتظر دقيقة قبل ما تطلب كود جديد',true);RESET.busy=false;return}
   var arr=new Uint32Array(1);crypto.getRandomValues(arr);
   var code=String(100000+(arr[0]%900000));
   await emailjs.send(EJS.service,EJS.template,{email:email,passcode:code});

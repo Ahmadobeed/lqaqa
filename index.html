@@ -288,50 +288,141 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
 .qsheet>div{background:var(--card);border:1px solid var(--border);border-radius:24px 24px 0 0;padding:20px;width:100%;color:var(--text)}
 .qsw{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:16px 0}
 .qsw button{width:44px;height:44px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .2s}.qsw button:active{transform:scale(.85)}.qsw button.on{border-color:#fff;transform:scale(1.15)}
-</style><style>.snote{display:block;font-size:12px;color:var(--blue2);margin:6px 2px}.nt{position:relative;margin-top:10px;overflow:hidden;border-radius:16px}.nt-del{position:absolute;right:0;top:0;bottom:0;width:70px;background:#ff5b5b;color:#fff;border:0;display:flex;align-items:center;justify-content:center;cursor:pointer}.nt-del .ic{width:22px;height:22px}.nt-in{margin:0!important;transition:transform .25s;cursor:pointer}.nt.sw .nt-in{transform:translateX(70px)}.qtoast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:var(--card2);color:var(--text);border:1px solid var(--blue);padding:10px 18px;border-radius:20px;z-index:5000;font-size:13px}</style><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+</style><style>.snote{display:block;font-size:12px;color:var(--blue2);margin:6px 2px}.nt{position:relative;margin-top:10px;overflow:hidden;border-radius:16px}.nt-del{position:absolute;right:0;top:0;bottom:0;width:70px;background:#ff5b5b;color:#fff;border:0;display:flex;align-items:center;justify-content:center;cursor:pointer}.nt-del .ic{width:22px;height:22px}.nt-in{margin:0!important;transition:transform .25s;cursor:pointer}.nt.sw .nt-in{transform:translateX(70px)}.qtoast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:var(--card2);color:var(--text);border:1px solid var(--blue);padding:10px 18px;border-radius:20px;z-index:5000;font-size:13px}</style>
+<!-- ===== Firebase Core (Compat) ===== -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<!-- ===== App Check (Compat) ===== -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js"></script>
+<script src="https://www.google.com/recaptcha/enterprise.js?render=6LeA0RIuAAAAAIKSPIJ3YplJSHAx0qfqKuD0v7_a"></script>
+
+<!-- ===== تهيئة Firebase + App Check ===== -->
 <script>
-/* ===== Firebase sync layer: يزامن بيانات الموقع (qaqa_*) مع Firestore ===== */
 (function(){
-var cfg={apiKey:'AIzaSyAaklzt1UpQ2GRBMu9YrjoJk8LbdNXoF7Q',authDomain:'al-qaqa-bd1b7.firebaseapp.com',projectId:'al-qaqa-bd1b7',storageBucket:'al-qaqa-bd1b7.firebasestorage.app',messagingSenderId:'815526380054',appId:'1:815526380054:web:f40638ce40b958043aeb37'};
-var LOCAL=/^(qaqa_active_account|qaqa_all_accounts|qaqa_welcomed|qaqa_anamode|qaqa_biometric_|qa_theme)/;
-function shared(k){return !!k&&!LOCAL.test(k)&&!/^(firebase|__|loglevel)/i.test(k)}
+  var firebaseConfig = {
+    apiKey: "AIzaSyAaklzt1UpQ2GRBMu9YrjoJk8LbdNXoF7Q",
+    authDomain: "al-qaqa-bd1b7.firebaseapp.com",
+    projectId: "al-qaqa-bd1b7",
+    storageBucket: "al-qaqa-bd1b7.firebasestorage.app",
+    messagingSenderId: "815526380054",
+    appId: "1:815526380054:web:f40638ce40b958043aeb37"
+  };
+  if(!window.firebase){console.warn('Firebase SDK not loaded');return;}
+  firebase.initializeApp(firebaseConfig);
+  try{
+    firebase.appCheck().activate(
+      new firebase.appCheck.ReCaptchaEnterpriseProvider('6LeA0RIuAAAAAIKSPIJ3YplJSHAx0qfqKuD0v7_a'),
+      true
+    );
+    console.log('✅ App Check Al-Qaqa شغال');
+  }catch(e){
+    console.warn('App Check init error:', e && e.message);
+  }
+})();
+</script>
+<script>
+/* ===== Firebase sync layer: يزامن بيانات الموقع (qaqa_*) مع Firestore — للمستخدمين المسجلين فقط ===== */
+(function(){
+if(!window.firebase||!firebase.apps.length){console.warn('Firebase not initialized');return}
+
+/* مفاتيح لا تُزامن أبداً (حساسة أو محلية) */
+var BLOCKED=/^(qaqa_users_full|qaqa_active_account|qaqa_all_accounts|qaqa_welcomed|qaqa_anamode|qaqa_biometric_|qa_theme|qaqa_presence|qaqa_bc|qaqa_bcseen|qaqa_receipts|qaqa_inbox)/;
+function syncable(k){return !!k && !BLOCKED.test(k) && !/^(firebase|__|loglevel)/i.test(k)}
 function fid(k){return encodeURIComponent(k).replace(/%/g,'_')}
-if(!window.firebase){console.warn('Firebase SDK not loaded');return}
-firebase.initializeApp(cfg);
-var db=firebase.firestore(),auth=firebase.auth(),ready=false,applying=false,queue={};
+
+var db=firebase.firestore(),auth=firebase.auth();
+var ready=false,applying=false,queue={},unsub=null;
 var rawSet=Storage.prototype.setItem,rawRem=Storage.prototype.removeItem;
+
+function userRef(uid){return db.collection('users').doc(uid).collection('data')}
+function canSync(){var u=auth.currentUser;return !!u&&!u.isAnonymous}
+
 function push(k,v){
+  var u=auth.currentUser;
+  if(!u||u.isAnonymous)return;
   if(!ready){queue[k]=v;return}
-  db.collection('kv').doc(fid(k)).set({k:k,v:v,t:firebase.firestore.FieldValue.serverTimestamp()}).catch(function(e){console.warn('sync fail',k,e.code)});
+  userRef(u.uid).doc(fid(k))
+    .set({k:k,v:v,uid:u.uid,t:firebase.firestore.FieldValue.serverTimestamp()})
+    .catch(function(e){console.warn('sync fail',k,e&&e.code)});
 }
-Storage.prototype.setItem=function(k,v){rawSet.apply(this,arguments);if(this===localStorage&&!applying&&shared(k))push(k,String(v))};
-Storage.prototype.removeItem=function(k){rawRem.apply(this,arguments);if(this===localStorage&&!applying&&shared(k)&&ready)db.collection('kv').doc(fid(k)).delete().catch(function(){})};
-window.__qaqaHook=function(w){try{var P=w.Storage.prototype;if(P.__h)return;P.__h=1;var rs=P.setItem,rr=P.removeItem;
- P.setItem=function(k,v){rs.apply(this,arguments);if(this===w.localStorage&&!applying&&shared(k))push(k,String(v))};
- P.removeItem=function(k){rr.apply(this,arguments);if(this===w.localStorage&&!applying&&shared(k)&&ready)db.collection('kv').doc(fid(k)).delete().catch(function(){})}}catch(e){}};
-new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.tagName==='IFRAME'||(n.querySelectorAll&&n.querySelector('iframe'))){(n.tagName==='IFRAME'?[n]:n.querySelectorAll('iframe')).forEach(function(f){f.addEventListener('load',function(){window.__qaqaHook(f.contentWindow)})})}})})}).observe(document.documentElement,{childList:true,subtree:true});
-new Promise(function(res){var un=auth.onAuthStateChanged(function(u){un();res(u)})}).then(function(u){return u?u:auth.signInAnonymously()}).then(function(){
-  return db.collection('kv').get();
-}).then(function(snap){
-  var changed=false;applying=true;
-  snap.forEach(function(d){var x=d.data();if(x&&x.k&&localStorage.getItem(x.k)!==x.v){rawSet.call(localStorage,x.k,x.v);changed=true}});
-  try{var ac=JSON.parse(localStorage.getItem('qaqa_active_account')||'null'),us=JSON.parse(localStorage.getItem('qaqa_users_full')||'[]');
-  if(ac&&ac.id&&!us.some(function(x){return x.id===ac.id})){us.push(ac);rawSet.call(localStorage,'qaqa_users_full',JSON.stringify(us));queue['qaqa_users_full']=JSON.stringify(us);changed=true}}catch(e){}
-  applying=false;ready=true;
-  /* ارفع اللي موجود محلياً وما هو بالسيرفر */
-  var remote={};snap.forEach(function(d){remote[d.data().k]=1});
-  for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(shared(k)&&!remote[k]&&!(k in queue))queue[k]=localStorage.getItem(k)}
-  Object.keys(queue).forEach(function(k){push(k,queue[k])});queue={};
-  if(changed&&!sessionStorage.getItem('qaqa_fb_reloaded')){sessionStorage.setItem('qaqa_fb_reloaded','1');location.reload();return}
-  /* تحديثات مباشرة من باقي الأجهزة (تنحفظ محلياً وتظهر عند فتح الصفحة التالية) */
-  db.collection('kv').onSnapshot(function(s){
+function del(k){
+  var u=auth.currentUser;
+  if(!u||u.isAnonymous||!ready)return;
+  userRef(u.uid).doc(fid(k)).delete().catch(function(){});
+}
+
+/* اعتراض الحفظ/الحذف (على Storage.prototype وليس على localStorage نفسه) */
+Storage.prototype.setItem=function(k,v){
+  rawSet.apply(this,arguments);
+  if(this===localStorage&&!applying&&syncable(k))push(k,String(v));
+};
+Storage.prototype.removeItem=function(k){
+  rawRem.apply(this,arguments);
+  if(this===localStorage&&!applying&&syncable(k))del(k);
+};
+
+/* نفس الاعتراض للـ iframes (لوحة الأدمن) */
+window.__qaqaHook=function(w){try{
+  var P=w.Storage.prototype;if(P.__h)return;P.__h=1;
+  var rs=P.setItem,rr=P.removeItem;
+  P.setItem=function(k,v){rs.apply(this,arguments);if(this===w.localStorage&&!applying&&syncable(k))push(k,String(v))};
+  P.removeItem=function(k){rr.apply(this,arguments);if(this===w.localStorage&&!applying&&syncable(k))del(k)};
+}catch(e){}};
+new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){
+  if(n.tagName==='IFRAME'||(n.querySelector&&n.querySelector('iframe'))){
+    (n.tagName==='IFRAME'?[n]:n.querySelectorAll('iframe')).forEach(function(f){
+      f.addEventListener('load',function(){window.__qaqaHook(f.contentWindow)});
+    });
+  }
+})})}).observe(document.documentElement,{childList:true,subtree:true});
+
+/* عند تغيّر حالة المصادقة */
+auth.onAuthStateChanged(function(u){
+  if(unsub){unsub();unsub=null}
+  ready=false;queue={};
+  if(!u||u.isAnonymous)return;
+
+  userRef(u.uid).get().then(function(snap){
+    var changed=false;
     applying=true;
-    s.docChanges().forEach(function(c){var x=c.doc.data();if(c.type!=='removed'&&x&&x.k&&localStorage.getItem(x.k)!==x.v){rawSet.call(localStorage,x.k,x.v);window.__qaqaDirty=1}});
+    snap.forEach(function(d){
+      var x=d.data();
+      if(x&&x.k&&localStorage.getItem(x.k)!==x.v){rawSet.call(localStorage,x.k,x.v);changed=true}
+    });
     applying=false;
-  });
-}).catch(function(e){console.warn('Firebase init error',e&&e.code||e)});
+    ready=true;
+
+    var remote={};
+    snap.forEach(function(d){remote[d.data().k]=1});
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(syncable(k)&&!remote[k]&&!(k in queue))queue[k]=localStorage.getItem(k);
+    }
+    Object.keys(queue).forEach(function(k){push(k,queue[k])});
+    queue={};
+
+    if(changed&&!sessionStorage.getItem('qaqa_fb_reloaded')){
+      sessionStorage.setItem('qaqa_fb_reloaded','1');
+      location.reload();
+      return;
+    }
+
+    unsub=userRef(u.uid).onSnapshot(function(s){
+      if(!canSync())return;
+      applying=true;
+      s.docChanges().forEach(function(c){
+        var x=c.doc.data();
+        if(c.type!=='removed'&&x&&x.k&&localStorage.getItem(x.k)!==x.v){
+          rawSet.call(localStorage,x.k,x.v);
+          window.__qaqaDirty=1;
+        }
+      });
+      applying=false;
+    });
+  }).catch(function(e){console.warn('Firebase load error',e&&e.code||e)});
+});
 })();
 </script>
 </head><body>
@@ -1813,9 +1904,83 @@ window.__loadSiteExtra=function(db){db.followers=getFollowers(AD.uname).length;d
 db.msgs=us.map(u=>({uid:String(u.id),name:u.fullName||u.username,list:lsGet('qaqa_sup_'+u.username,[]).map(m=>({f:m.f,t:m.t,ts:m.ts}))})).filter(m=>m.list.length);
 let c=[];[videos,anashid,imagesData].forEach(L=>L.forEach(it=>(it.comments||[]).forEach(x=>{x.cid=x.cid||Math.random().toString(36).slice(2,9);let u=us.find(y=>y.username===x.user);c.push({id:x.cid,uid:u?String(u.id):x.user,name:x.name||x.user,text:x.text})})))
 ;db.comments=c};
-const _ea=enterApp;enterApp=function(){let n=lsGet('qaqa_users_full',[]).length;_ea();let l=lsGet('qaqa_users_full',[]);if(l.length>n){l[l.length-1].joined=Date.now();lsSet('qaqa_users_full',l)}};
-const _dl=doLogin;doLogin=function(){let lu=$('loginUser').value.trim().toLowerCase(),u=lsGet('qaqa_users_full',[]).find(x=>x.username.toLowerCase()===lu||x.id===$('loginUser').value.trim());if(u&&u.banned){$('loginErr').innerText='هذا الحساب محظور';return}_dl()};
-/* الناشر: اسم حساب النشر + متابعة */
+/* ===== إنشاء حساب بالإيميل (Firebase Auth) ===== */
+const _origEnterApp = enterApp;
+enterApp = async function(){
+  var u = document.getElementById('username').value.trim();
+  var p = document.getElementById('regPassword').value;
+  var fn = document.getElementById('firstName').value.trim();
+  var ln = document.getElementById('lastName').value.trim();
+  var em = (document.getElementById('regEmail')||{}).value || '';
+  var err = document.getElementById('err');
+  if(!u||!p||!fn||!ln){err.innerText='عبي كل الحقول';return}
+  if(!em){err.innerText='الإيميل مطلوب';return}
+
+  try{
+    var dup = await firebase.firestore().collection('profiles')
+      .where('username','==',u.toLowerCase()).limit(1).get();
+    if(!dup.empty){err.innerText='اسم المستخدم مأخوذ';return}
+  }catch(e){/* تجاهل */}
+
+  try{
+    var cred = await firebase.auth().createUserWithEmailAndPassword(em, p);
+    var user = cred.user;
+    await user.updateProfile({displayName: fn+' '+ln});
+    await firebase.firestore().collection('profiles').doc(user.uid).set({
+      username: u.toLowerCase(),
+      firstName: fn,
+      lastName: ln,
+      fullName: (fn+' '+ln).trim(),
+      pic: '',
+      bio: '',
+      joined: firebase.firestore.FieldValue.serverTimestamp(),
+      verified: false
+    });
+    var localUser = makeLocalProfile(user, {username:u, firstName:fn, lastName:ln});
+    var users = JSON.parse(localStorage.getItem('qaqa_users_full')||'[]');
+    var idx = users.findIndex(function(x){return x.id===localUser.id});
+    if(idx>=0){
+      users[idx].password = '';
+      users[idx].email = em;
+      users[idx].country = document.getElementById('country').value;
+      users[idx].state = document.getElementById('state').value;
+      users[idx].birth = document.getElementById('birth').value;
+      users[idx].gender = selectedGender;
+      users[idx].pic = profilePicData || '';
+      localStorage.setItem('qaqa_users_full', JSON.stringify(users));
+    }
+    completeLogin(localUser);
+  }catch(e){
+    err.innerText = e.message;
+  }
+};
+
+/* ===== تسجيل الدخول بالإيميل (Firebase Auth) ===== */
+const _origDoLogin = doLogin;
+doLogin = async function(){
+  var lu = document.getElementById('loginUser').value.trim();
+  var lp = document.getElementById('loginPass').value;
+  var err = document.getElementById('loginErr');
+
+  var email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(lu) ? lu : null;
+  if(!email){
+    try{
+      var snap = await firebase.firestore().collection('profiles')
+        .where('username','==',lu.toLowerCase()).limit(1).get();
+      if(snap.empty){err.innerText='الحساب مو موجود';return}
+    }catch(e){}
+    err.innerText='سجّل دخولك بالإيميل';
+    return;
+  }
+
+  try{
+    var cred = await firebase.auth().signInWithEmailAndPassword(email, lp);
+    var localUser = makeLocalProfile(cred.user);
+    completeLogin(localUser);
+  }catch(e){
+    err.innerText = e.message;
+  }
+};/* الناشر: اسم حساب النشر + متابعة */
 const LST={v:()=>videos,a:()=>anashid,i:()=>imagesData,c:()=>channelsData};
 function pubRow(t,it){let by=it&&!it.adm&&it.by,x=by?{u:by,n:getAnyUser(by).fullName||by,p:getPic(by),a:0}:{u:AD.uname,n:AD.name,p:AD.pic,a:1},me=getActiveAccount(),f=me&&getFollowing(me.username).includes(x.u),mine=me&&me.username===x.u;
 return `<div class="publisher-row pubrow" data-t="${t}" data-i="${it?it.id:0}" style="margin:8px 14px"><div class="publisher-ava" onclick="openUserProfile('${x.u}')">${x.p?'<img src="'+x.p+'" style="width:100%;height:100%;object-fit:cover">':(x.a?svgI(CROWN,24):ico('user'))}</div><div style="flex:1" onclick="openUserProfile('${x.u}')"><b>${escH(x.n)}</b>${x.a?' <span style="color:#f5c542">'+svgI(CROWN,14)+'</span>':''}<br><small style="color:var(--muted)">${getFollowers(x.u).length} متابع</small></div>${mine?'':`<button class="follow-btn ${f?'following':''}" onclick="pubFollow('${x.u}')">${f?'تمت المتابعة':'متابعة'}</button>`}</div>`}
@@ -1887,7 +2052,55 @@ function mkProfile(fu){
  users.push(p);sl('qaqa_users_full',users);return p;}
 
 /* Google */
-window.loginWithGoogle=async function(){
+window.loginWithGoogle = async function(){
+  try{
+    var provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({prompt:'select_account'});
+    var result = await firebase.auth().signInWithPopup(provider);
+    var user = result.user;
+
+    await firebase.firestore().collection('profiles').doc(user.uid).set({
+      username: (user.email||'user').split('@')[0].toLowerCase().replace(/[^a-z0-9_.]/g,''),
+      firstName: user.displayName || '',
+      lastName: '',
+      fullName: user.displayName || '',
+      pic: user.photoURL || '',
+      bio: '',
+      joined: firebase.firestore.FieldValue.serverTimestamp(),
+      verified: false
+    }, {merge:true});
+
+    var localUser = makeLocalProfile(user);
+    completeLogin(localUser);
+  }catch(e){
+    if(e.code==='auth/popup-closed-by-user')return;
+    showModal('تعذر الدخول', e.message);
+  }
+};
+
+function makeLocalProfile(fbUser, extra){
+  extra = extra || {};
+  var users = JSON.parse(localStorage.getItem('qaqa_users_full')||'[]');
+  var existing = users.find(function(x){return x.uid===fbUser.uid});
+
+  if(!existing){
+    existing = {
+      uid: fbUser.uid,
+      email: fbUser.email || '',
+      username: extra.username || (fbUser.email||'user').split('@')[0].toLowerCase().replace(/[^a-z0-9_.]/g,''),
+      firstName: extra.firstName || (fbUser.displayName||'').split(' ')[0] || '',
+      lastName: extra.lastName || '',
+      fullName: fbUser.displayName || '',
+      id: 'QAQA-'+Math.floor(100000+Math.random()*900000),
+      pic: fbUser.photoURL || '',
+      country:'', state:'', birth:'', gender:'',
+      password:''
+    };
+    users.push(existing);
+    localStorage.setItem('qaqa_users_full', JSON.stringify(users));
+  }
+  return existing;
+  }
  try{var pr=new firebase.auth.GoogleAuthProvider();pr.setCustomParameters({prompt:'select_account'});
   var r=await auth.signInWithPopup(pr);completeLogin(mkProfile(r.user));
  }catch(e){if(e&&(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request'))return;showModal('تعذر الدخول',msg(e));}};

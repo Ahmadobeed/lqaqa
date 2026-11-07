@@ -3410,7 +3410,7 @@ window.__qSubmitPost = async function(){
       id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       type: qSelType, title: title, desc: desc, content: content,
       by: nrm(m.username), byName: qDisplay(m), ts: Date.now(), createdAt: Date.now(),
-      status: 'pending', mediaId: mediaId, thumbId: thumbId, mime: qSelFile.type || '',
+      status: 'approved', mediaId: mediaId, thumbId: thumbId, mime: qSelFile.type || '',
       fileName: qSelFile.name || ('file' + qFileExt('', qSelType)), size: qSelFile.size,
       views: [], reactions: { like: [], love: [], fire: [], clap: [] }, comments: [], downloads: 0, rejectReason: ''
     };
@@ -3419,7 +3419,7 @@ window.__qSubmitPost = async function(){
     qCloseOverlay();
     try { if (gPage() === 'profile') window.renderUniversalProfile(m.username); } catch(e){}
     try { window.renderNotifs(); window.updateNotifDot(); } catch(e){}
-    try { showModal('تم الإرسال', 'منشورك بانتظار موافقة الإدارة. سيصلك إشعار عند الموافقة.'); } catch(e){}
+    try { showModal('تم الإرسال ; } catch(e){}
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = 'إرسال للمراجعة'; }
     qToast('تعذّر حفظ الملف، جرّب مرة ثانية');

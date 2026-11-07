@@ -322,7 +322,7 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
 })();
 </script>
 <style>.qa-tg{display:block;text-align:center;margin-top:16px;color:var(--blue2);font-weight:700;font-size:14px;text-decoration:underline;cursor:pointer}</style>
-</head><body>
+<</head><body>
 <div id="waNotif"><div style="width:44px;height:44px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;flex:0 0 44px"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div><div style="flex:1;text-align:right"><b id="waNotifName" style="color:#fff">اسم</b><br><small id="waNotifText" style="color:#CBD5E1">رسالة</small></div><div style="display:flex;gap:6px;flex-direction:column"><button class="wa-btn view" onclick="waViewMsg()">عرض</button><button class="wa-btn read" onclick="waMarkRead()">مقروءة</button></div></div>
 <div id="gateBox" class="container"><div class="gate-box"><div style="text-align:center;padding:12px 10px;line-height:1.9;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:14px"><div style="font-family:'Amiri',serif;font-size:16px;font-weight:700">السلام عليكم ورحمة الله تعالى وبركاته</div><div style="font-size:13px">حياكم الله</div><div style="font-size:26px;font-weight:900;color:var(--blue2)">القعقاع | Al-Qaqa</div><div style="font-size:13px;font-weight:700;color:var(--blue2)">منصة جهادية ودعوية</div><div style="font-size:13px;color:var(--muted)">استمتعو في اكتشافها - لاتنسونا من دعائكم</div><div style="font-size:11px;color:var(--muted);opacity:0.55">المطور: زمزم ابو القعقاع</div></div><button class="gate-btn primary" onclick="showGateForm('login')">تسجيل دخول</button><button class="gate-btn secondary" onclick="showGateForm('create')">انشاء حساب</button><button class="gate-btn secondary" style="background:transparent;border:1px dashed var(--blue)" onclick="enterAsGuest()">الدخول كضيف</button></div></div>
 <div id="authBox" class="container hidden"><h1>القعقاع | Al-Qaqa</h1><div class="card"><button class="back-btn" onclick="backToGate()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> رجوع</button><div id="createForm" class="hidden"><label>اللقب *</label><input id="regNick" maxlength="30" autocomplete="off" placeholder="مثال: أبو القعقاع"><label>المحافظة *</label><select id="regGov"><option value="">اختر المحافظة</option><option>دمشق</option><option>ريف دمشق</option><option>حلب</option><option>حمص</option><option>حماة</option><option>اللاذقية</option><option>طرطوس</option><option>إدلب</option><option>دير الزور</option><option>الرقة</option><option>الحسكة</option><option>السويداء</option><option>درعا</option><option>القنيطرة</option></select><label>العمر *</label><input id="regAge" type="number" inputmode="numeric" min="10" max="100" placeholder="مثال: 25"><label>اسم المستخدم *</label><input id="regUser" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="مثال: ahk_wg" style="text-align:left"><label>كود التفعيل *</label><input id="regCode" dir="ltr" autocomplete="off" autocapitalize="characters" placeholder="اكتب كود التفعيل" style="text-align:center;letter-spacing:3px;text-transform:uppercase"><button class="btn-create" id="regBtn" onclick="enterApp()">انشاء حساب</button><a class="qa-tg" href="https://t.me/A_137_MD" target="_blank" rel="noopener">للحصول على رمز التفعيل</a></div><div id="loginForm" class="hidden"><label>اسم المستخدم</label><input id="loginUser" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="اسم المستخدم" style="text-align:left"><label>كود التفعيل</label><input id="loginCode" dir="ltr" autocomplete="off" autocapitalize="characters" placeholder="اكتب كود التفعيل" style="text-align:center;letter-spacing:3px;text-transform:uppercase"><button class="btn-create" id="loginBtn" onclick="doLogin()">تسجيل دخول</button><a class="qa-tg" href="https://t.me/A_137_MD" target="_blank" rel="noopener">للحصول على رمز التفعيل</a><p id="loginErr" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div><p id="err" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div></div>
@@ -2367,7 +2367,33 @@ var ADM_KEY = 'qaqa_admins_v2';
 var U_NOTIF_PREFIX = 'qaqa_unotifs_';
 var POST_FAV_PREFIX = 'qaqa_post_favs_';
 var LAST_PAGE_PREFIX = 'qaqa_last_page_';
-
+// ===== ربط المنشورات مع Firebase - عشان تطلع عند الكل =====
+function syncPostsToCloud(){
+  try{
+    if(window.firebase && firebase.apps && firebase.apps.length){
+      var ps = qPosts();
+      for(var i=0;i<ps.length;i++){
+        firebase.firestore().collection('posts').doc(String(ps[i].id)).set(ps[i]).catch(function(){});
+      }
+    }
+  }catch(e){}
+}
+function pullPostsFromCloud(){
+  try{
+    if(window.firebase && firebase.apps && firebase.apps.length){
+      firebase.firestore().collection('posts').limit(100).get().then(function(q){
+        var arr=[];
+        q.forEach(function(d){ arr.push(d.data()); });
+        if(arr.length){
+          localStorage.setItem(P_KEY, JSON.stringify(arr));
+          if(window.__qRenderEvents) window.__qRenderEvents();
+          if(window.renderUniversalProfile) window.renderUniversalProfile();
+        }
+      }).catch(function(){});
+    }
+  }catch(e){}
+}
+setTimeout(pullPostsFromCloud, 2000);
 var qSuppressSave = false;
 var qPostId = null;
 var qEventFilter = 'all';
@@ -2549,9 +2575,7 @@ function qGenCode(){
 }
 
 /* ------------------------------ Posts ---------------------------------- */
-function qPosts(){ try { var a = JSON.parse(localStorage.getItem(P_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; } }
-function qSavePosts(a){ try { localStorage.setItem(P_KEY, JSON.stringify(a)); } catch(e){} }
-function qPost(id){ var a = qPosts(); for (var i = 0; i < a.length; i++) if (String(a[i].id) === String(id)) return a[i]; return null; }
+function qSavePosts(a){ try{ localStorage.setItem(P_KEY, JSON.stringify(a)); }catch(e){} try{ syncPostsToCloud(); }catch(e){} }function qPost(id){ var a = qPosts(); for (var i = 0; i < a.length; i++) if (String(a[i].id) === String(id)) return a[i]; return null; }
 function qApproved(){ return qPosts().filter(function(p){ return p.status === 'approved'; }).sort(function(a,b){ return (b.ts || 0) - (a.ts || 0); }); }
 function qByUser(u, all){
   u = nrm(u);

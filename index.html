@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="ar" dir="rtl"><head><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script><meta name="viewport" content="width=device-width,initial-scale=1"><title>القعقاع | Al-Qaqa</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>القعقاع | Al-Qaqa</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
 <style>:root{--maxw:100%}@media(min-width:768px){:root{--maxw:820px}}@media(min-width:1100px){:root{--maxw:1080px}}
 html,body{direction:rtl!important;text-align:right}
 :root{--bg:#0A1120;--bg2:#0D1528;--card:#131E36;--card2:#1A2947;--border:#223457;--blue:#3A86FF;--blue2:#5DA2FF;--text:#E8EEF9;--muted:#8AA0C2}
@@ -292,6 +292,7 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
 <!-- ===== Firebase Core (Compat) ===== -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 
 <!-- ===== App Check (Compat) ===== -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js"></script>
@@ -322,7 +323,7 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
 })();
 </script>
 <style>.qa-tg{display:block;text-align:center;margin-top:16px;color:var(--blue2);font-weight:700;font-size:14px;text-decoration:underline;cursor:pointer}</style>
-<</head><body>
+</head><body>
 <div id="waNotif"><div style="width:44px;height:44px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;flex:0 0 44px"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div><div style="flex:1;text-align:right"><b id="waNotifName" style="color:#fff">اسم</b><br><small id="waNotifText" style="color:#CBD5E1">رسالة</small></div><div style="display:flex;gap:6px;flex-direction:column"><button class="wa-btn view" onclick="waViewMsg()">عرض</button><button class="wa-btn read" onclick="waMarkRead()">مقروءة</button></div></div>
 <div id="gateBox" class="container"><div class="gate-box"><div style="text-align:center;padding:12px 10px;line-height:1.9;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:14px"><div style="font-family:'Amiri',serif;font-size:16px;font-weight:700">السلام عليكم ورحمة الله تعالى وبركاته</div><div style="font-size:13px">حياكم الله</div><div style="font-size:26px;font-weight:900;color:var(--blue2)">القعقاع | Al-Qaqa</div><div style="font-size:13px;font-weight:700;color:var(--blue2)">منصة جهادية ودعوية</div><div style="font-size:13px;color:var(--muted)">استمتعو في اكتشافها - لاتنسونا من دعائكم</div><div style="font-size:11px;color:var(--muted);opacity:0.55">المطور: زمزم ابو القعقاع</div></div><button class="gate-btn primary" onclick="showGateForm('login')">تسجيل دخول</button><button class="gate-btn secondary" onclick="showGateForm('create')">انشاء حساب</button><button class="gate-btn secondary" style="background:transparent;border:1px dashed var(--blue)" onclick="enterAsGuest()">الدخول كضيف</button></div></div>
 <div id="authBox" class="container hidden"><h1>القعقاع | Al-Qaqa</h1><div class="card"><button class="back-btn" onclick="backToGate()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> رجوع</button><div id="createForm" class="hidden"><label>اللقب *</label><input id="regNick" maxlength="30" autocomplete="off" placeholder="مثال: أبو القعقاع"><label>المحافظة *</label><select id="regGov"><option value="">اختر المحافظة</option><option>دمشق</option><option>ريف دمشق</option><option>حلب</option><option>حمص</option><option>حماة</option><option>اللاذقية</option><option>طرطوس</option><option>إدلب</option><option>دير الزور</option><option>الرقة</option><option>الحسكة</option><option>السويداء</option><option>درعا</option><option>القنيطرة</option></select><label>العمر *</label><input id="regAge" type="number" inputmode="numeric" min="10" max="100" placeholder="مثال: 25"><label>اسم المستخدم *</label><input id="regUser" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="مثال: ahk_wg" style="text-align:left"><label>كود التفعيل *</label><input id="regCode" dir="ltr" autocomplete="off" autocapitalize="characters" placeholder="اكتب كود التفعيل" style="text-align:center;letter-spacing:3px;text-transform:uppercase"><button class="btn-create" id="regBtn" onclick="enterApp()">انشاء حساب</button><a class="qa-tg" href="https://t.me/A_137_MD" target="_blank" rel="noopener">للحصول على رمز التفعيل</a></div><div id="loginForm" class="hidden"><label>اسم المستخدم</label><input id="loginUser" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="اسم المستخدم" style="text-align:left"><label>كود التفعيل</label><input id="loginCode" dir="ltr" autocomplete="off" autocapitalize="characters" placeholder="اكتب كود التفعيل" style="text-align:center;letter-spacing:3px;text-transform:uppercase"><button class="btn-create" id="loginBtn" onclick="doLogin()">تسجيل دخول</button><a class="qa-tg" href="https://t.me/A_137_MD" target="_blank" rel="noopener">للحصول على رمز التفعيل</a><p id="loginErr" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div><p id="err" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div></div>
@@ -1197,7 +1198,7 @@ const IDB={
  async get(){const d=await this.open();return new Promise(res=>{const q=d.transaction('s').objectStore('s').get('db');q.onsuccess=()=>res(q.result);q.onerror=()=>res(null)})},
  async set(v){const d=await this.open();return new Promise(res=>{const t=d.transaction('s','readwrite');t.objectStore('s').put(v,'db');t.oncomplete=()=>res();t.onerror=()=>res()})}
 };
-const save=()=>IDB.set(db).catch(()=>toast('تعذر الحفظ'));
+const save=()=>{try{parent.__adminContentPush&&parent.__adminContentPush(db)}catch(e){}return IDB.set(db).catch(()=>toast('تعذر الحفظ'))};
 
 /* ===== حالة الواجهة ===== */
 let page='dash',mode='list',editId=null,draft={},chTab='all',uTab='all',uq='',profId=null,contentOpen=false;
@@ -2367,56 +2368,18 @@ var ADM_KEY = 'qaqa_admins_v2';
 var U_NOTIF_PREFIX = 'qaqa_unotifs_';
 var POST_FAV_PREFIX = 'qaqa_post_favs_';
 var LAST_PAGE_PREFIX = 'qaqa_last_page_';
-// ===== عشان تطلع عند الكل ربط المنشورات مع Firebase =====
-var FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAaklzt1UpQ2GRBMu9YrjoJk8LbdNXoF7Q",
-  authDomain: "al-qaqa-bd1b7.firebaseapp.com",
-  projectId: "al-qaqa-bd1b7",
-  storageBucket: "al-qaqa-bd1b7.firebasestorage.app",
-  messagingSenderId: "815526380054",
-  appId: "1:815526380054:web:f40638ce40b958043aeb37",
-  measurementId: "G-1M64RKP1HX"
-};
-function ensureFirebase(){
-  try{
-    if(!window.firebase) return false;
-    if(!firebase.apps || !firebase.apps.length){
-      if(!FIREBASE_CONFIG) return false;
-      firebase.initializeApp(FIREBASE_CONFIG);
-    }
-    return true;
-  }catch(e){ return false; }
-}
-function syncPostsToCloud(){
-  try{
-    if(!ensureFirebase()) return;
-    var posts = JSON.parse(localStorage.getItem('posts')||'[]');
-    if(!posts.length) return;
-    firebase.firestore().collection('posts').doc('all').set({posts: posts, updated: Date.now()}).catch(function(e){});
-  }catch(e){}
-}
-function pullPostsFromCloud(){
-  try{
-    if(!ensureFirebase()) return;
-    firebase.firestore().collection('posts').doc('all').get().then(function(doc){
-      if(!doc.exists) { syncPostsToCloud(); return; }
-      var cloudPosts = doc.data().posts || [];
-      if(!cloudPosts.length) { syncPostsToCloud(); return; }
-      var localPosts = JSON.parse(localStorage.getItem('posts')||'[]');
-      // اذا السحاب فيه اقل من اللي عندك - لا تمسح - ارفع اللي عندك
-      if(localPosts.length > cloudPosts.length){
-        syncPostsToCloud();
-        return;
-      }
-      localStorage.setItem('posts', JSON.stringify(cloudPosts));
-      if(typeof renderPosts==='function') renderPosts();
-      if(typeof displayPosts==='function') displayPosts();
-    });
-  }catch(e){}
-}
-// بس مرة وحدة - ارفع اول بعدين اسحب
-setTimeout(function(){ syncPostsToCloud(); }, 1000);
-setTimeout(pullPostsFromCloud, 3000);
+// ===== مزامنة المنشورات مع السحابة (التفاصيل بسكربت QAQA-CLOUD آخر الملف) =====
+function syncPostsToCloud(){ try{ if(window.__cloudPostsPush) window.__cloudPostsPush(); }catch(e){} }
+function pullPostsFromCloud(){ try{ if(window.__cloudPostsStart) window.__cloudPostsStart(); }catch(e){} }
+setTimeout(pullPostsFromCloud, 1500);
+var qSuppressSave = false;
+var qPostId = null;
+var qEventFilter = 'all';
+var qSelFile = null;
+var qSelType = 'video';
+var qPreviewURL = '';
+var qEditPic = '';
+var qMediaCache = {};
 
 function esc(v){
   if (typeof window.escH === 'function') return window.escH(v);
@@ -2542,15 +2505,7 @@ function qPersistUser(u){
   } catch(e){}
 }
 function qMirrorUser(u){
-  try {
-    if (!window.firebase || !firebase.apps || !firebase.apps.length || !u) return;
-    var doc = firebase.firestore().collection('users').doc(encodeURIComponent(nrm(u.username)));
-    doc.set({
-      username: nrm(u.username), nickname: u.nickname || qDisplay(u), governorate: u.governorate || u.state || '',
-      age: u.age || '', id: u.id, verified: !!u.verified, banned: !!u.banned, restricted: !!u.restricted,
-      joined: u.joined || Date.now()
-    }, { merge: true }).catch(function(){});
-  } catch(e){}
+  try { if (window.__cloudUserPush) window.__cloudUserPush(u); } catch(e){}
 }
 
 /* --------------------------- Activation codes -------------------------- */
@@ -2590,6 +2545,7 @@ function qGenCode(){
 }
 
 /* ------------------------------ Posts ---------------------------------- */
+function qPosts(){ try{ var a = JSON.parse(localStorage.getItem(P_KEY) || '[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; } }
 function qSavePosts(a){ try{ localStorage.setItem(P_KEY, JSON.stringify(a)); }catch(e){} try{ syncPostsToCloud(); }catch(e){} }function qPost(id){ var a = qPosts(); for (var i = 0; i < a.length; i++) if (String(a[i].id) === String(id)) return a[i]; return null; }
 function qApproved(){ return qPosts().filter(function(p){ return p.status === 'approved'; }).sort(function(a,b){ return (b.ts || 0) - (a.ts || 0); }); }
 function qByUser(u, all){
@@ -2657,7 +2613,7 @@ function qOpenDB(){
   });
   return qDBPromise;
 }
-function qMediaPut(id, blob){
+function qMediaPutLocal(id, blob){
   return qOpenDB().then(function(db){
     return new Promise(function(resolve, reject){
       var tx = db.transaction('files', 'readwrite');
@@ -2667,7 +2623,17 @@ function qMediaPut(id, blob){
     });
   });
 }
-function qMediaGet(id){
+/* يحفظ محلياً ثم يرفع للسيرفر عشان يظهر عند كل المستخدمين */
+function qMediaPut(id, blob){
+  return qMediaPutLocal(id, blob).then(function(){
+    if (!window.__cloudMediaUp) return id;
+    return window.__cloudMediaUp(id, blob).then(function(){ return id; }, function(e){
+      try { qToast('تعذّر رفع الملف للسيرفر: ' + ((e && (e.qa || e.code || e.message)) || '')); } catch(x){}
+      throw e;
+    });
+  });
+}
+function qMediaGetLocal(id){
   return qOpenDB().then(function(db){
     return new Promise(function(resolve, reject){
       var tx = db.transaction('files', 'readonly');
@@ -2677,11 +2643,20 @@ function qMediaGet(id){
     });
   }).catch(function(){ return null; });
 }
+function qMediaGet(id){
+  return qMediaGetLocal(id).then(function(b){
+    if (b) return b;
+    return window.__cloudMediaBlob ? window.__cloudMediaBlob(id) : null;
+  });
+}
 function qMediaURL(id){
   if (!id) return Promise.resolve('');
   if (qMediaCache[id]) return Promise.resolve(qMediaCache[id]);
-  return qMediaGet(id).then(function(blob){
-    if (!blob) return '';
+  return qMediaGetLocal(id).then(function(blob){
+    if (!blob) {
+      if (!window.__cloudMediaURL) return '';
+      return window.__cloudMediaURL(id).then(function(u){ if (u) qMediaCache[id] = u; return u || ''; });
+    }
     var url = URL.createObjectURL(blob);
     qMediaCache[id] = url;
     return url;
@@ -2749,7 +2724,22 @@ function qAddUNotif(u, n){
   a.unshift(n);
   safeSet(k, a);
   if (isMeName(u)) { qToast(n.title); try { window.updateNotifDot(); window.renderNotifs(); } catch(e){} }
+  else { try { if (window.__cloudNotifPush) window.__cloudNotifPush(nrm(u), n); } catch(e){} }
 }
+/* إشعار جاي من السيرفر (مثلاً توثيق/موافقة نشر من الإدارة) */
+window.__qMergeNotif = function(u, n){
+  var k = U_NOTIF_PREFIX + nrm(u);
+  var a = safeGet(k, []);
+  if (!Array.isArray(a)) a = [];
+  for (var i = 0; i < a.length; i++) if (String(a[i].id) === String(n.id)) return false;
+  a.unshift({ id: n.id, title: n.title, k: n.k || '', tid: n.tid || '', date: n.date || nowStr(), read: false });
+  safeSet(k, a);
+  if (isMeName(u)) {
+    if (Date.now() - (n.ts || 0) < 120000) qToast(n.title);
+    try { window.updateNotifDot(); window.renderNotifs(); } catch(e){}
+  }
+  return true;
+};
 function qAllNotifs(){
   var out = [], m = currentUser();
   if (m) qUNotifs(m.username).forEach(function(n){ out.push({ kind: 'u', n: n }); });
@@ -2978,10 +2968,13 @@ window.enterApp = async function(){
   if (!validUname(u)) return bad('اسم المستخدم من 3 إلى 30 حرف (حروف وأرقام و _ . فقط) وبدون مسافات');
   if (similarExists(u)) return bad('اسم المستخدم مأخوذ أو مشابه جداً لاسم موجود، اختر اسماً آخر');
   if (code !== MASTER) {
-    var rec = qCodeRec(code);
+    setRegBusy(true, 'عم نتحقق من الكود...');
+    var rec = await window.__cloudCodeGet(code);
+    if (rec && rec.error) return bad(rec.reason === 'permission-denied' ? 'قاعدة البيانات رفضت القراءة (راجع قواعد Firestore)' : 'تعذر الاتصال بالسيرفر، تأكد من الإنترنت وجرّب مرة ثانية');
     if (!rec) return bad('كود التفعيل غير صحيح');
     if (rec.used) return bad('كود التفعيل هذا مستخدم من قبل، كل كود يُستخدم مرة واحدة فقط');
   }
+  try { var exU = await window.__cloudUserGet(u); if (exU) return bad('اسم المستخدم مأخوذ، اختر اسماً ثانياً'); } catch(e){}
   setRegBusy(true, 'عم ننشئ الحساب...');
   var now = Date.now();
   var user = {
@@ -2993,7 +2986,7 @@ window.enterApp = async function(){
   };
   var a = qUsers();
   if (a.some(function(x){ return nrm(x.username) === u; })) return bad('اسم المستخدم مأخوذ، اختر اسماً ثانياً');
-  if (code !== MASTER && !qConsumeCode(code, u)) return bad('تعذّر استخدام كود التفعيل، جرّب كوداً آخر');
+  if (code !== MASTER && !(await window.__cloudCodeConsume(code, u))) return bad('تعذّر استخدام كود التفعيل، جرّب كوداً آخر');
   a.push(user);
   qSaveUsers(a);
   try { userPics[u] = ''; userBios[u] = ''; } catch(e){}
@@ -3016,11 +3009,14 @@ window.doLogin = async function(){
   function bad(t){ if (err) err.innerText = t; if (btn) { btn.disabled = false; btn.textContent = 'تسجيل دخول'; } }
   function busy(b, t){ if (!btn) return; btn.disabled = b; btn.textContent = t || 'تسجيل دخول'; }
   if (!u || !code) return bad('اكتب اسم المستخدم وكود التفعيل');
+  busy(true, 'عم نتحقق...');
   var user = qUserByName(u);
+  try { var cu = await window.__cloudUserGet(u); if (cu) user = qUserByName(u) || cu; } catch(e){}
   if (!user && code !== MASTER) return bad('الحساب غير موجود بهذا الاسم');
   if (user && user.banned && code !== MASTER) return bad('هذا الحساب محظور');
   if (code !== MASTER) {
-    var rec = qCodeRec(code);
+    var rec = await window.__cloudCodeGet(code);
+    if (rec && rec.error) return bad(rec.reason === 'permission-denied' ? 'قاعدة البيانات رفضت القراءة (راجع قواعد Firestore)' : 'تعذر الاتصال بالسيرفر، تأكد من الإنترنت وجرّب مرة ثانية');
     if (!rec) return bad('كود التفعيل غير صحيح');
     if (rec.used) return bad('كود التفعيل هذا مستخدم من قبل، كل دخول يحتاج كوداً جديداً');
   }
@@ -3037,7 +3033,7 @@ window.doLogin = async function(){
     var arr = qUsers(); arr.push(user); qSaveUsers(arr);
   }
   if (code !== MASTER) {
-    if (!qConsumeCode(code, u)) return bad('تعذّر استخدام كود التفعيل، جرّب كوداً آخر');
+    if (!(await window.__cloudCodeConsume(code, u))) return bad('تعذّر استخدام كود التفعيل، جرّب كوداً آخر');
   }
   user = qUserByName(u) || user;
   user.lastLogin = Date.now();
@@ -3621,6 +3617,7 @@ window.__qSharePost = function(id){
 
 /* -------------------------- Admin (dashboard) APIs --------------------- */
 window.__adminListCodes = function(){
+  try { if (window.__cloudCodesStart) window.__cloudCodesStart(); } catch(e){}
   var a = qCodes().slice().sort(function(x, y){ return (y.createdAt || 0) - (x.createdAt || 0); });
   return {
     active: a.filter(function(c){ return !c.used; }),
@@ -3638,9 +3635,8 @@ window.__adminGenCode = function(){
   a.push({ code: code, createdAt: Date.now(), used: false });
   qSaveCodes(a);
   try {
-    if (window.firebase && firebase.apps && firebase.apps.length)
-      firebase.firestore().collection('activation_codes').doc(code).set({ used: false, createdAt: Date.now() }).catch(function(){});
-  } catch(e){}
+    window.__cloudCodePut(code).catch(function(e){ qToast('تعذر حفظ الكود على السيرفر (لن يعمل عند المستخدمين): ' + ((e && (e.code || e.message)) || '')); });
+  } catch(e){ qToast('تعذر حفظ الكود على السيرفر'); }
   return code;
 };
 window.__adminDelCode = function(code){
@@ -4045,4 +4041,476 @@ window.__q = {
 
 </script>
 <!-- QAQA-LAYER:END -->
+<!-- QAQA-CLOUD:START -->
+<script>
+(function(){
+'use strict';
+function ready(){ return !!(window.firebase && firebase.apps && firebase.apps.length); }
+function fs(){ return firebase.firestore(); }
+function nrm(u){ return String(u == null ? '' : u).trim().replace(/^@/, '').toLowerCase(); }
+function enc(u){ return encodeURIComponent(nrm(u)); }
+function lsGet(k, d){ try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch(e){ return d; } }
+function lsSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+function toast(t){ try { if (window.__qToast) window.__qToast(t); } catch(e){} }
+function qa(m){ var e = new Error(m); e.qa = m; return e; }
+function tmo(p, ms){ return Promise.race([p, new Promise(function(_, rej){ setTimeout(function(){ rej(qa('timeout')); }, ms); })]); }
+function normCode(c){ return String(c == null ? '' : c).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function clean(o){ return JSON.parse(JSON.stringify(o)); }
+
+/* ============================ أكواد التفعيل ============================ */
+var C_KEY = 'qaqa_codes_v2';
+function localCodes(){ var a = lsGet(C_KEY, []); return Array.isArray(a) ? a : []; }
+function setLocalCode(rec){
+  var a = localCodes(), c = normCode(rec.code), i = -1;
+  for (var k = 0; k < a.length; k++) if (normCode(a[k].code) === c) { i = k; break; }
+  if (i >= 0) a[i] = Object.assign(a[i], rec); else a.push(rec);
+  lsSet(C_KEY, a);
+}
+/* يقرأ الكود من السيرفر مباشرة (مو من جهاز المستخدم) */
+window.__cloudCodeGet = function(code){
+  code = normCode(code);
+  if (!ready()) return Promise.resolve({ error: true, reason: 'no-db' });
+  return tmo(fs().collection('activation_codes').doc(code).get({ source: 'server' }), 12000).then(function(s){
+    if (!s.exists) return null;
+    var d = s.data() || {};
+    var rec = { code: code, used: !!d.used, usedBy: d.usedBy || '', usedAt: d.usedAt || 0, createdAt: d.createdAt || 0 };
+    setLocalCode(rec);
+    return rec;
+  }).catch(function(e){ return { error: true, reason: (e && e.code) || 'network' }; });
+};
+/* يستهلك الكود بشكل ذري: إذا استخدمه أحد قبلك بيفشل */
+window.__cloudCodeConsume = function(code, username){
+  code = normCode(code);
+  if (!ready()) return Promise.resolve(false);
+  var ref = fs().collection('activation_codes').doc(code);
+  var now = Date.now();
+  return tmo(fs().runTransaction(function(tx){
+    return tx.get(ref).then(function(s){
+      if (!s.exists || (s.data() || {}).used) throw qa('used');
+      tx.update(ref, { used: true, usedBy: nrm(username), usedAt: now });
+    });
+  }), 15000).then(function(){
+    setLocalCode({ code: code, used: true, usedBy: nrm(username), usedAt: now });
+    return true;
+  }).catch(function(){ return false; });
+};
+window.__cloudCodePut = function(code){
+  code = normCode(code);
+  if (!ready()) return Promise.reject(qa('no-db'));
+  return fs().collection('activation_codes').doc(code).set({ code: code, used: false, createdAt: Date.now() });
+};
+var codesSub = null;
+window.__cloudCodesStart = function(){
+  if (codesSub || !ready()) return;
+  codesSub = fs().collection('activation_codes').onSnapshot(function(q){
+    var cloud = {}, arr = [];
+    q.forEach(function(d){
+      var x = d.data() || {}, c = normCode(x.code || d.id);
+      cloud[c] = 1;
+      arr.push({ code: c, createdAt: x.createdAt || 0, used: !!x.used, usedBy: x.usedBy || '', usedAt: x.usedAt || 0 });
+    });
+    var keep = localCodes().filter(function(c){ return !cloud[normCode(c.code)] && !c.used && Date.now() - (c.createdAt || 0) < 120000; });
+    lsSet(C_KEY, arr.concat(keep));
+  }, function(){ codesSub = null; });
+};
+
+/* ============================== المستخدمون ============================== */
+var U_KEY = 'qaqa_users_full';
+function localUsers(){ var a = lsGet(U_KEY, []); return Array.isArray(a) ? a : []; }
+function mergeUsers(list){
+  var a = localUsers(), changed = false;
+  list.forEach(function(d){
+    if (!d || !d.username) return;
+    var u = nrm(d.username), i = -1;
+    for (var k = 0; k < a.length; k++) if (nrm(a[k].username) === u) { i = k; break; }
+    if (i < 0) { a.push(Object.assign({}, d)); changed = true; return; }
+    var loc = a[i], before = JSON.stringify(loc);
+    for (var key in d) {
+      if (!Object.prototype.hasOwnProperty.call(d, key)) continue;
+      if (key === 'pic' && !d.pic) continue;
+      loc[key] = d[key];
+    }
+    if (JSON.stringify(loc) !== before) changed = true;
+  });
+  if (changed) lsSet(U_KEY, a);
+  return changed;
+}
+function userPush(u, opts){
+  if (!ready() || !u || !u.username) return Promise.resolve();
+  var d = clean(u);
+  delete d.password;
+  if (!(opts && opts.flags)) { ['verified', 'banned', 'restricted', 'verifiedAt'].forEach(function(k){ delete d[k]; }); }
+  if (d.pic && d.pic.length > 300000) delete d.pic;
+  return fs().collection('users').doc(enc(u.username)).set(d, { merge: true }).catch(function(e){ console.warn('user push failed', e && e.code); });
+}
+window.__cloudUserPush = userPush;
+window.__cloudUserGet = function(name){
+  if (!ready()) return Promise.reject(qa('no-db'));
+  return tmo(fs().collection('users').doc(enc(name)).get({ source: 'server' }), 12000).then(function(s){
+    if (!s.exists) return null;
+    var d = s.data() || {};
+    mergeUsers([d]);
+    return d;
+  });
+};
+var allUsersSub = null;
+function startAllUsers(){
+  if (allUsersSub || !ready()) return;
+  allUsersSub = fs().collection('users').onSnapshot(function(q){
+    var arr = [], removed = [];
+    q.forEach(function(s){ arr.push(s.data()); });
+    q.docChanges().forEach(function(ch){ if (ch.type === 'removed') removed.push(nrm((ch.doc.data() || {}).username)); });
+    mergeUsers(arr);
+    if (removed.length) lsSet(U_KEY, localUsers().filter(function(u){ return removed.indexOf(nrm(u.username)) < 0; }));
+  }, function(){ allUsersSub = null; });
+}
+(function(){
+  var o = window.__loadSiteUsers;
+  window.__loadSiteUsers = function(){ try { startAllUsers(); } catch(e){} return o && o.apply(this, arguments); };
+})();
+
+var fetchedUsers = {};
+function ensureAuthors(ps){
+  if (!ready()) return;
+  ps.forEach(function(p){
+    var u = nrm(p && p.by);
+    if (!u || fetchedUsers[u]) return;
+    fetchedUsers[u] = 1;
+    fs().collection('users').doc(enc(u)).get().then(function(s){
+      if (s.exists && mergeUsers([s.data()])) rerenderPosts();
+    }).catch(function(){});
+  });
+}
+
+/* حسابي: أراقب حالة حسابي (توثيق/حظر/حذف) وإشعاراتي من أي جهاز */
+var meName = '', meUnsub = null, notifUnsub = null, meSeen = false;
+function watchMe(){
+  var a = lsGet('qaqa_active_account', null);
+  var u = a && a.username ? nrm(a.username) : '';
+  if (u === meName) return;
+  if (meUnsub) { meUnsub(); meUnsub = null; }
+  if (notifUnsub) { notifUnsub(); notifUnsub = null; }
+  meName = u; meSeen = false;
+  if (!u || !ready()) return;
+  meUnsub = fs().collection('users').doc(enc(u)).onSnapshot(function(s){
+    if (!s.exists) {
+      if (!meSeen && !s.metadata.fromCache) userPush(lsGet('qaqa_active_account', null));
+      else if (meSeen && !s.metadata.fromCache) {
+        try { if (window.logout) window.logout(); if (window.showModal) window.showModal('الحساب محذوف', 'تم حذف هذا الحساب من قبل الإدارة'); } catch(e){}
+      }
+      return;
+    }
+    meSeen = true;
+    var d = s.data() || {};
+    mergeUsers([d]);
+    var act = lsGet('qaqa_active_account', null);
+    if (act && nrm(act.username) === u) {
+      ['verified', 'banned', 'restricted', 'verifiedAt'].forEach(function(k){ if (d[k] !== undefined) act[k] = d[k]; });
+      lsSet('qaqa_active_account', act);
+    }
+    if (d.banned) { try { if (window.logout) window.logout(); if (window.showModal) window.showModal('محظور', 'تم حظر هذا الحساب'); } catch(e){} }
+  }, function(){});
+  notifUnsub = fs().collection('notifs').where('to', '==', u).onSnapshot(function(q){
+    q.docChanges().forEach(function(ch){
+      if (ch.type !== 'added') return;
+      var d = ch.doc.data() || {};
+      try { if (window.__qMergeNotif) window.__qMergeNotif(u, { id: d.id, title: d.title, k: d.k, tid: d.tid, date: d.date, ts: d.ts }); } catch(e){}
+    });
+  }, function(){});
+}
+window.__cloudNotifPush = function(to, n){
+  if (!ready() || !to || !n) return;
+  to = nrm(to);
+  fs().collection('notifs').doc(to + '_' + String(n.id)).set(clean({ to: to, id: n.id, title: n.title || '', k: n.k || '', tid: n.tid || '', date: n.date || '', ts: Date.now() })).catch(function(){});
+};
+/* أي تعديل على ملفي الشخصي (صورة/نبذة/...) يصعد للسيرفر */
+var lastSelf = '';
+function selfPush(){
+  var a = lsGet('qaqa_active_account', null);
+  if (!a || !a.username || !ready()) return;
+  var d = clean(a);
+  ['verified', 'banned', 'restricted', 'verifiedAt', 'password'].forEach(function(k){ delete d[k]; });
+  if (d.pic && d.pic.length > 300000) delete d.pic;
+  var s = JSON.stringify(d);
+  if (s === lastSelf) return;
+  lastSelf = s;
+  fs().collection('users').doc(enc(a.username)).set(d, { merge: true }).catch(function(){ lastSelf = ''; });
+}
+
+/* ============================== المنشورات =============================== */
+var P_KEY = 'qaqa_posts_v2';
+var lastPush = {}, cloudIds = {}, postsSub = null, snapReady = false;
+function localPosts(){ var a = lsGet(P_KEY, []); return Array.isArray(a) ? a : []; }
+function rerenderPosts(){
+  try { if (window.__qRenderEvents) window.__qRenderEvents(); } catch(e){}
+  try { if (window.renderUniversalProfile) window.renderUniversalProfile(); } catch(e){}
+}
+window.__cloudPostsPush = function(){
+  if (!ready()) return;
+  var col = fs().collection('posts'), ps = localPosts(), have = {};
+  ps.forEach(function(p){
+    if (!p || !p.id) return;
+    have[p.id] = 1;
+    var s; try { s = JSON.stringify(p); } catch(e){ return; }
+    if (lastPush[p.id] === s) return;
+    lastPush[p.id] = s;
+    col.doc(String(p.id)).set(JSON.parse(s)).catch(function(e){ delete lastPush[p.id]; console.warn('post push failed', e && e.code); });
+  });
+  if (snapReady) Object.keys(cloudIds).forEach(function(id){
+    if (!have[id]) { delete cloudIds[id]; delete lastPush[id]; col.doc(id).delete().catch(function(){}); }
+  });
+};
+window.__cloudPostsStart = function(){
+  if (postsSub || !ready()) return;
+  postsSub = fs().collection('posts').onSnapshot(function(q){
+    var cloudArr = [], ids = {};
+    q.forEach(function(d){ var p = d.data(); if (p && p.id) { cloudArr.push(p); ids[p.id] = 1; } });
+    var merged = cloudArr.slice();
+    localPosts().forEach(function(p){ if (p && p.id && !ids[p.id] && !cloudIds[p.id]) merged.push(p); });
+    cloudIds = ids; snapReady = true;
+    cloudArr.forEach(function(p){ lastPush[p.id] = JSON.stringify(p); });
+    merged.sort(function(a, b){ return (b.ts || 0) - (a.ts || 0); });
+    var before = localStorage.getItem(P_KEY), after = JSON.stringify(merged);
+    if (before !== after) { try { localStorage.setItem(P_KEY, after); } catch(e){} rerenderPosts(); }
+    if (merged.length > cloudArr.length) window.__cloudPostsPush();
+    ensureAuthors(merged);
+  }, function(e){ postsSub = null; console.warn('posts listener', e && e.code); });
+};
+
+/* ================== رفع الملفات (صور/فيديو/صوت) للسيرفر ================== */
+var MAX_FS = 12 * 1024 * 1024;
+function blobToB64(blob){
+  return new Promise(function(res, rej){
+    var r = new FileReader();
+    r.onload = function(){ var s = String(r.result); res(s.slice(s.indexOf(',') + 1)); };
+    r.onerror = function(){ rej(qa('تعذر قراءة الملف')); };
+    r.readAsDataURL(blob);
+  });
+}
+window.__cloudMediaUp = async function(id, blob){
+  if (!ready()) throw qa('لا يوجد اتصال بقاعدة البيانات');
+  var meta = { mime: blob.type || '', size: blob.size || 0, ts: Date.now() };
+  if (window.firebase.storage) {
+    try {
+      var ref = firebase.storage().ref('media/' + id);
+      await ref.put(blob, { contentType: blob.type || 'application/octet-stream' });
+      var url = await ref.getDownloadURL();
+      await fs().collection('media').doc(id).set(Object.assign({ via: 'storage', url: url }, meta));
+      return true;
+    } catch(e) { console.warn('storage upload failed, using firestore chunks', e && (e.code || e.message)); }
+  }
+  if (blob.size > MAX_FS) throw qa('الملف كبير (' + Math.round(blob.size / 1048576) + ' ميغا). بدون تفعيل Firebase Storage الحد الأقصى ' + Math.round(MAX_FS / 1048576) + ' ميغا');
+  var b64 = await blobToB64(blob), CH = 700000, n = Math.ceil(b64.length / CH);
+  for (var i = 0; i < n; i += 8) {
+    var batch = fs().batch();
+    for (var j = i; j < Math.min(n, i + 8); j++) batch.set(fs().collection('media_chunks').doc(id + '_' + j), { id: id, i: j, d: b64.slice(j * CH, (j + 1) * CH) });
+    await batch.commit();
+  }
+  await fs().collection('media').doc(id).set(Object.assign({ via: 'chunks', n: n }, meta));
+  return true;
+};
+var murl = {};
+window.__cloudMediaURL = function(id){
+  if (!id) return Promise.resolve('');
+  if (murl[id]) return Promise.resolve(murl[id]);
+  if (!ready()) return Promise.resolve('');
+  return fs().collection('media').doc(id).get().then(function(s){
+    if (!s.exists) return '';
+    var d = s.data() || {};
+    if (d.via === 'storage') { murl[id] = d.url; return d.url; }
+    var n = d.n || 0, ps = [];
+    for (var i = 0; i < n; i++) ps.push(fs().collection('media_chunks').doc(id + '_' + i).get());
+    return Promise.all(ps).then(function(ss){
+      var b64 = ss.map(function(x){ return (x.data() || {}).d || ''; }).join('');
+      var bin = atob(b64), len = bin.length, u8 = new Uint8Array(len);
+      for (var k = 0; k < len; k++) u8[k] = bin.charCodeAt(k);
+      var url = URL.createObjectURL(new Blob([u8], { type: d.mime || 'application/octet-stream' }));
+      murl[id] = url;
+      return url;
+    });
+  }).catch(function(){ return ''; });
+};
+window.__cloudMediaBlob = function(id){
+  return window.__cloudMediaURL(id).then(function(u){
+    if (!u) return null;
+    return fetch(u).then(function(r){ return r.blob(); }).catch(function(){ return null; });
+  });
+};
+
+/* ===== المحتوى المنشور من لوحة التحكم (إصدارات/أناشيد/صور/قنوات) ===== */
+var CSEC = ['releases', 'anashid', 'images', 'channels'];
+var cBusy = false, cNext = null;
+function isBlob(x){ return !!x && typeof x === 'object' && typeof x.size === 'number' && typeof x.slice === 'function'; }
+async function contentPushOnce(d){
+  if (!ready()) throw qa('لا يوجد اتصال بقاعدة البيانات');
+  var done = lsGet('qaqa_cmedia_done', {}), prev = lsGet('qaqa_content_ids', {}), now = {};
+  for (var s = 0; s < CSEC.length; s++) {
+    var sec = CSEC[s], list = d[sec] || [];
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i], key = sec + '_' + it.id;
+      now[key] = 1;
+      var fileId = '', thumbId = '', mime = '';
+      if (isBlob(it.file)) {
+        fileId = 'c_' + key + '_f' + it.file.size; mime = it.file.type || '';
+        if (!done[fileId]) { await window.__cloudMediaUp(fileId, new Blob([it.file], { type: it.file.type })); done[fileId] = 1; lsSet('qaqa_cmedia_done', done); }
+      }
+      if (isBlob(it.thumb)) {
+        thumbId = 'c_' + key + '_t' + it.thumb.size;
+        if (!done[thumbId]) { await window.__cloudMediaUp(thumbId, new Blob([it.thumb], { type: it.thumb.type })); done[thumbId] = 1; lsSet('qaqa_cmedia_done', done); }
+      }
+      await fs().collection('content').doc(key).set({
+        sec: sec, id: String(it.id), n: Number(it.ts) || Date.now(), pinned: !!it.pinned,
+        title: it.title || '', desc: it.desc || '', link: it.link || '', type: it.type || '',
+        fileId: fileId, thumbId: thumbId, mime: mime, upd: Date.now()
+      });
+    }
+  }
+  var del = Object.keys(prev).filter(function(k){ return !now[k]; });
+  for (var k = 0; k < del.length; k++) await fs().collection('content').doc(del[k]).delete();
+  lsSet('qaqa_content_ids', now);
+}
+window.__adminContentPush = function(dbo){
+  if (!dbo) return;
+  cNext = dbo;
+  if (cBusy) return;
+  cBusy = true;
+  (async function(){
+    while (cNext) {
+      var d = cNext; cNext = null;
+      try { await contentPushOnce(d); }
+      catch(e) { console.warn('content push failed', e); toast('تعذر نشر المحتوى للجميع: ' + ((e && (e.qa || e.code || e.message)) || 'خطأ')); }
+    }
+    cBusy = false;
+  })();
+};
+var contentSub = null, prevCloud = {}, renderT = null;
+function dstr(n){
+  var d = new Date(n);
+  function p(x){ return (x < 10 ? '0' : '') + x; }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function scheduleRender(){
+  clearTimeout(renderT);
+  renderT = setTimeout(function(){
+    ['renderHome', 'renderVideos', 'renderAnashid', 'renderSowar', 'renderChannels'].forEach(function(f){
+      try { if (typeof window[f] === 'function') window[f](); } catch(e){}
+    });
+  }, 150);
+}
+function stripCloud(arr){ for (var i = arr.length - 1; i >= 0; i--) if (arr[i] && arr[i].cloud) arr.splice(i, 1); }
+function setMedia(it, field, mediaId){
+  if (!mediaId) return;
+  window.__cloudMediaURL(mediaId).then(function(u){ if (u && it[field] !== u) { it[field] = u; scheduleRender(); } });
+}
+function applyContent(docs){
+  var V = [], A = [], I = [], C = [], map = {};
+  docs.forEach(function(d){
+    var id = Number(d.n) || Date.now(), k = d.sec + '_' + d.id, old = prevCloud[k] || {}, it;
+    if (d.sec === 'releases') {
+      it = { id: id, url: old.url || '', title: d.title, desc: d.desc, date: dstr(id), views: old.views || 0, likes: old.likes || 0, thumb: old.thumb || '', comments: old.comments || [], cloud: true };
+      setMedia(it, 'url', d.fileId); setMedia(it, 'thumb', d.thumbId); V.push(it);
+    } else if (d.sec === 'anashid') {
+      it = { id: id, url: old.url || '', title: d.title, desc: d.desc, date: dstr(id), likes: old.likes || 0, comments: old.comments || [], img: old.img || '', duration: old.duration || '', cloud: true };
+      setMedia(it, 'url', d.fileId); setMedia(it, 'img', d.thumbId); A.push(it);
+    } else if (d.sec === 'images') {
+      it = { id: id, title: d.desc || '', date: dstr(id).slice(0, 10), url: old.url || '', cloud: true };
+      setMedia(it, 'url', d.fileId); I.push(it);
+    } else if (d.sec === 'channels') {
+      it = { id: id, name: d.title, desc: d.desc, img: old.img || '', type: d.type || 'telegram', link: d.link, cloud: true };
+      setMedia(it, 'img', d.thumbId); C.push(it);
+    } else return;
+    map[k] = it;
+  });
+  prevCloud = map;
+  try {
+    if (typeof videos !== 'undefined') { stripCloud(videos); Array.prototype.unshift.apply(videos, V); }
+    if (typeof anashid !== 'undefined') { stripCloud(anashid); Array.prototype.unshift.apply(anashid, A); }
+    if (typeof imagesData !== 'undefined') { stripCloud(imagesData); Array.prototype.unshift.apply(imagesData, I); }
+    if (typeof channelsData !== 'undefined') { stripCloud(channelsData); Array.prototype.unshift.apply(channelsData, C); }
+  } catch(e){ console.warn('apply content', e); }
+  scheduleRender();
+}
+window.__cloudContentStart = function(){
+  if (contentSub || !ready()) return;
+  contentSub = fs().collection('content').onSnapshot(function(q){
+    var docs = [];
+    q.forEach(function(s){ docs.push(s.data()); });
+    docs.sort(function(a, b){ return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (b.n || 0) - (a.n || 0); });
+    applyContent(docs);
+  }, function(e){ contentSub = null; console.warn('content listener', e && e.code); });
+};
+
+/* ========= إعدادات الموقع / الإشعارات العامة / المشرفون (لوحة التحكم) ========= */
+var SKEYS = { bc: 'qaqa_bc', settings: 'qaqa_site_settings', adminProfile: 'qaqa_admin_profile', admins: 'qaqa_admins_v2' };
+var applyingRemote = false, stateSub = null;
+function statePush(){
+  if (applyingRemote || !ready()) return;
+  var o = {};
+  Object.keys(SKEYS).forEach(function(k){
+    var v = lsGet(SKEYS[k], null);
+    if (v == null) return;
+    if (k === 'bc' && Array.isArray(v)) v = v.slice(-50);
+    o[k] = JSON.stringify(v);
+  });
+  o.upd = Date.now();
+  fs().collection('site').doc('state').set(o, { merge: true }).catch(function(e){ toast('تعذر نشر الإعدادات للجميع: ' + ((e && e.code) || '')); });
+}
+window.__cloudStateStart = function(){
+  if (stateSub || !ready()) return;
+  stateSub = fs().collection('site').doc('state').onSnapshot(function(s){
+    if (!s.exists) return;
+    var d = s.data() || {}, changed = {};
+    applyingRemote = true;
+    try {
+      if (typeof d.bc === 'string' && localStorage.getItem('qaqa_bcseen') === null) {
+        try { lsSet('qaqa_bcseen', (JSON.parse(d.bc) || []).map(function(b){ return b.id; })); } catch(e){}
+      }
+      Object.keys(SKEYS).forEach(function(k){
+        if (typeof d[k] !== 'string') return;
+        if (localStorage.getItem(SKEYS[k]) !== d[k]) { localStorage.setItem(SKEYS[k], d[k]); changed[k] = 1; }
+      });
+      if (changed.settings && window.__q && window.__q.applySettings) window.__q.applySettings(lsGet(SKEYS.settings, {}));
+      if (changed.bc && typeof pullBC === 'function') pullBC();
+    } catch(e){ console.warn('state apply', e); }
+    applyingRemote = false;
+  }, function(){ stateSub = null; });
+};
+(function(){
+  var old = window.__adminSync;
+  window.__adminSync = function(type, d){
+    var r;
+    try { r = old && old.apply(this, arguments); } catch(e){}
+    try {
+      if (!applyingRemote) {
+        if (['settings', 'maintenance', 'admin_profile', 'admin_add', 'admin_remove', 'broadcast'].indexOf(type) >= 0) statePush();
+        if (type === 'user' || type === 'ban') {
+          d = d || {};
+          var action = type === 'ban' ? 'ban' : d.action;
+          if (action !== 'delete') {
+            var u = localUsers().filter(function(x){ return String(x.id) === String(d.id || d.to); })[0];
+            if (u) userPush(u, { flags: true });
+          }
+        }
+      }
+    } catch(e){}
+    return r;
+  };
+})();
+
+/* ================================ تشغيل ================================= */
+function start(){
+  if (!ready()) { setTimeout(start, 500); return; }
+  window.__cloudPostsStart();
+  window.__cloudContentStart();
+  window.__cloudStateStart();
+  watchMe();
+  setInterval(watchMe, 2500);
+  setInterval(selfPush, 4000);
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+else start();
+})();
+
+</script>
+<!-- QAQA-CLOUD:END -->
 </body></html>

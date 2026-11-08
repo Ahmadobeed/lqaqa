@@ -296,7 +296,7 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
   var TURSO_URL   = 'libsql://alqaqa-a-137-md.aws-sa-east-1.turso.io';
   var TURSO_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTQxMzE0MDIsImlkIjoiMDFhMWI4ZTItMDYwMS03NjQ1LWFiNjktNzU2YWY2NjM5ZjM5Iiwia2lkIjoiaEVRbkF2Umh5TEVPNzM0bnFBMzh4bmNCODQ5cmhhQ0VxeklvVWU0WEFyTSIsInJpZCI6ImFkMTBhMDA2LTllYTQtNGY2ZS1hODc2LWNhMjVjMWJhYjk4YyJ9.1rTqcDLdWf0DGOTbXwXzjPTfi1Ui0WuAsRCTYEIXsQulbxsvzS9Mtm5vGAG6u3PdzaXB5Mf8UX8xd1AslOvXAg';
   var HTTP = TURSO_URL.replace(/^libsql:\/\//, 'https://').replace(/^wss?:\/\//, 'https://');
-  var POLL = 5000;
+  var POLL = 15000;
 
   function err(code, msg){ var e = new Error(msg || code); e.code = code; return e; }
   function arg(v){
@@ -1997,7 +1997,7 @@ if(typeof SITE_API!=='undefined'&&SITE_API)setInterval(()=>loadExtra(),60000);
 })();
 <\/script>
 <script>setTimeout(()=>{try{loadUsers();loadExtra();setTimeout(render,300)}catch(e){}},500);
-setInterval(()=>{try{const a=JSON.stringify([db.users,db.msgs,db.comments,db.followers]);parent.__loadSiteUsers(db);parent.__loadSiteExtra(db);setTimeout(()=>{const b=JSON.stringify([db.users,db.msgs,db.comments,db.followers]);if(a!==b&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)&&!document.querySelector('.menu.open'))render()},400)}catch(e){}},6000);document.addEventListener('click',e=>{const c=e.target.closest('[data-copy]');if(!c)return;if(parent.__copyText)parent.__copyText(c.dataset.copy);else try{navigator.clipboard.writeText(c.dataset.copy)}catch(_){}toast('تم النسخ')});<\/script><style>.card:has(.menu.open){position:relative;z-index:30}.uav{overflow:hidden}</style><script>document.addEventListener('click',e=>{if(!e.target.closest('.dbtn'))return;setTimeout(()=>{document.querySelectorAll('.menu').forEach(m=>{m.style.top='';m.style.bottom=''});const m=document.querySelector('.menu.open');if(!m)return;const r=m.getBoundingClientRect();if(r.bottom>innerHeight-76){m.style.top='auto';m.style.bottom='44px'}},30)});<\/script></body>
+setInterval(()=>{try{const a=JSON.stringify([db.users,db.msgs,db.comments,db.followers]);parent.__loadSiteUsers(db);parent.__loadSiteExtra(db);setTimeout(()=>{const b=JSON.stringify([db.users,db.msgs,db.comments,db.followers]);if(a!==b&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)&&!document.querySelector('.menu.open'))render()},400)}catch(e){}},15000);document.addEventListener('click',e=>{const c=e.target.closest('[data-copy]');if(!c)return;if(parent.__copyText)parent.__copyText(c.dataset.copy);else try{navigator.clipboard.writeText(c.dataset.copy)}catch(_){}toast('تم النسخ')});<\/script><style>.card:has(.menu.open){position:relative;z-index:30}.uav{overflow:hidden}</style><script>document.addEventListener('click',e=>{if(!e.target.closest('.dbtn'))return;setTimeout(()=>{document.querySelectorAll('.menu').forEach(m=>{m.style.top='';m.style.bottom=''});const m=document.querySelector('.menu.open');if(!m)return;const r=m.getBoundingClientRect();if(r.bottom>innerHeight-76){m.style.top='auto';m.style.bottom='44px'}},30)});<\/script></body>
 </html>
 </script><script>
 /* ===== دمج لوحة التحكم مع الموقع ===== */
@@ -3205,7 +3205,6 @@ window.enterApp = async function(){
     var rec = await window.__cloudCodeGet(code);
     if (rec && rec.error) return bad(rec.reason === 'permission-denied' ? 'قاعدة البيانات رفضت القراءة (التوكن لا يملك صلاحية القراءة/الكتابة، راجع إعدادات Turso)' : 'تعذر الاتصال بالسيرفر، تأكد من الإنترنت وجرّب مرة ثانية');
     if (!rec) return bad('كود التفعيل غير صحيح');
-    if (rec.used) return bad('كود التفعيل هذا مستخدم من قبل، كل كود يُستخدم مرة واحدة فقط');
   }
   try { var exU = await window.__cloudUserGet(u); if (exU) return bad('اسم المستخدم مأخوذ، اختر اسماً ثانياً'); } catch(e){}
   setRegBusy(true, 'عم ننشئ الحساب...');
@@ -3219,7 +3218,7 @@ window.enterApp = async function(){
   };
   var a = qUsers();
   if (a.some(function(x){ return nrm(x.username) === u; })) return bad('اسم المستخدم مأخوذ، اختر اسماً ثانياً');
-  if (code !== MASTER && !(await window.__cloudCodeConsume(code, u))) return bad('تعذّر استخدام كود التفعيل، جرّب كوداً آخر');
+  
   a.push(user);
   qSaveUsers(a);
   try { userPics[u] = ''; userBios[u] = ''; } catch(e){}
@@ -3245,28 +3244,21 @@ window.doLogin = async function(){
   busy(true, 'عم نتحقق...');
   var user = qUserByName(u);
   try { var cu = await window.__cloudUserGet(u); if (cu) user = qUserByName(u) || cu; } catch(e){}
-  if (!user && code !== MASTER) {
-    var rec0 = await window.__cloudCodeGet(code);
-    if (rec0 && !rec0.error && !rec0.used) return bad('الحساب غير موجود. هذا الكود صالح، اضغط رجوع ثم "إنشاء حساب" واستخدمه هناك');
-    return bad('الحساب غير موجود بهذا الاسم');
-  }
   if (user && user.banned && code !== MASTER) return bad('هذا الحساب محظور');
   if (code !== MASTER) {
     var rec = await window.__cloudCodeGet(code);
     if (rec && rec.error) return bad(rec.reason === 'permission-denied' ? 'قاعدة البيانات رفضت القراءة (راجع التوكن)' : 'تعذر الاتصال بالسيرفر، تأكد من الإنترنت وجرّب مرة ثانية');
     if (!rec) return bad('كود التفعيل غير صحيح');
-    if (!rec.used) return bad('هذا الكود جديد ولسا ما انربط بحساب، اضغط رجوع ثم "إنشاء حساب" واستخدمه هناك');
-    if (nrm(rec.usedBy) !== u) return bad('هذا الكود مرتبط بحساب ثاني، استخدم الكود يلي سجّلت فيه');
   }
   busy(true, 'عم نتحقق...');
-  if (!user && code === MASTER) {
+  if (!user) {
     var now = Date.now();
     user = {
       id: newUserId(), username: u, nickname: u, firstName: u, lastName: '', fullName: u,
       country: 'سوريا', governorate: 'دمشق', state: 'دمشق', age: 25,
       birth: String(new Date().getFullYear() - 25), gender: '', password: '', email: '',
       pic: '', bio: '', verified: false, banned: false, restricted: false,
-      joined: now, createdAt: now, lastLogin: now, unameChangedAt: 0, masterCreated: true
+      joined: now, createdAt: now, lastLogin: now, unameChangedAt: 0, masterCreated: code === MASTER, signupCode: code
     };
     var arr = qUsers(); arr.push(user); qSaveUsers(arr);
   }
@@ -4631,7 +4623,7 @@ function scheduleRender(){
     var R = window.__qaqaRS = window.__qaqaRS || {};
     function mr(name, data){
       var s = '';
-      try { s = JSON.stringify(data); } catch(e){}
+      try { s = JSON.stringify(data, function(k, v){ return (typeof v === 'string' && v.length > 200) ? (v.length + v.slice(0, 40) + v.slice(-40)) : v; }); } catch(e){}
       if (R[name] === s) return;
       R[name] = s;
       try { if (typeof window[name] === 'function') window[name](); } catch(e){}
@@ -4881,27 +4873,36 @@ window.__cloudStateStart = function(){
 })();
 
 /* ================================ تشغيل ================================= */
+var RESET_ID = 'reset-2026-11-08-a';
+async function doReset(){
+  try {
+    var st = await fs().collection('site').doc('state').get();
+    var d = (st && st.data()) || {};
+    if (d.reset !== RESET_ID) {
+      await window.__qaqaSQL("DELETE FROM docs WHERE col NOT IN ('activation_codes')");
+      await fs().collection('site').doc('state').set({ reset: RESET_ID, wipe3: '1', wipe: String(Date.now()) });
+    }
+    if (localStorage.getItem('qaqa_reset_v') !== RESET_ID) {
+      try { localStorage.clear(); sessionStorage.clear(); } catch(e){}
+      try { localStorage.setItem('qaqa_reset_v', RESET_ID); localStorage.setItem('qaqa_wipe_v', String(d.wipe || '')); } catch(e){}
+      try { indexedDB.deleteDatabase('qaqa-admin'); } catch(e){}
+      setTimeout(function(){ location.reload(); }, 300);
+      return 'reload';
+    }
+  } catch(e){ console.warn('reset', e && e.code); }
+  return 'ok';
+}
 function start(){
   if (!ready()) { setTimeout(start, 500); return; }
+  if (!window.__resetDone) { doReset().then(function(r){ if (r !== 'reload') { window.__resetDone = 1; start(); } }); return; }
   window.__cloudContentStart();
   window.__cloudStateStart();
   window.__cloudPostsStart();
   window.__cloudPostsFetch();
   /* مسح شامل لمرة واحدة عند أول تشغيل للنسخة الجديدة (كل الأجهزة) */
-  (async function(){
-    try {
-      var s = await fs().collection('site').doc('state').get();
-      var d = (s && s.data()) || {};
-      if (d.wipe3 !== '1') {
-        /* تم تعطيل المسح التلقائي حتى لا تختفي المنشورات */
-        await fs().collection('site').doc('state').set({ wipe3: '1' }, { merge: true });
-        console.log('تم تنظيف الموقع (مسح شامل لمرة واحدة)');
-      }
-    } catch(e){ console.warn('init wipe', e && e.code); }
-  })();
   watchMe();
-  setInterval(function(){ try { if(!document.hidden) watchMe(); } catch(e){} }, 6000);
-  setInterval(function(){ try { if(!document.hidden) selfPush(); } catch(e){} }, 15000);
+  setInterval(function(){ try { if(!document.hidden) watchMe(); } catch(e){} }, 15000);
+  setInterval(function(){ try { if(!document.hidden) selfPush(); } catch(e){} }, 40000);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
 else start();
@@ -5155,7 +5156,9 @@ document.addEventListener('keyup',function(e){var k=(e.key||'').toLowerCase();if
 (function(){
 'use strict';
 /* اختياري: ضع رابط الـ Worker (ملف tg-proxy-worker.js) هنا، مثال: 'https://xxx.workers.dev/?url=' */
-var TG_PROXY='';
+var TG_PROXY='https://al-qaqa.al-qaqa.workers.dev/?url=';
+var AUTO_IMPORT=false; /* true = جلب منشورات القنوات تلقائياً */
+try{videos.length=0;anashid.length=0;imagesData.length=0;channelsData.length=0;localStorage.removeItem('qaqa_channels')}catch(e){}
 var CH={videos:'alqaqa2026',anashid:'bawaselforsongs'};
 var PX=[];
 if(TG_PROXY)PX.push(function(u){return TG_PROXY+encodeURIComponent(u)});
@@ -5243,6 +5246,7 @@ async function refresh(){
   }
 }
 function startTG(){
+  if(!AUTO_IMPORT){try{localStorage.removeItem('qaqa_tg_v1')}catch(e){}return}
   try{var c=JSON.parse(localStorage.getItem('qaqa_tg_v1')||'null');if(c){TGV=c.v||[];TGA=c.a||[];merge()}}catch(e){}
   refresh();
   setInterval(function(){if(!document.hidden)refresh()},300000);
@@ -5282,26 +5286,41 @@ function fname(n,b){
   if(e)n=/\.[A-Za-z0-9]{2,4}$/.test(n)?n.replace(/\.[A-Za-z0-9]{2,4}$/,e):n+e;
   return n;
 }
-async function fetchBlob(u){
-  var urls=[u].concat(/^(data|blob):/.test(u)?[]:PX.map(function(p){return p(u)}));
+async function fetchBlob(u,px){
+  var urls=px?PX.map(function(p){return p(u)}):[u];
   for(var i=0;i<urls.length;i++){
-    try{var r=await fetch(urls[i],{signal:sig(i?90000:30000)});if(!r.ok)continue;var b=await r.blob();if(b.size&&!/^text\//.test(b.type))return b}catch(e){}
+    try{var r=await fetch(urls[i],{signal:sig(px?90000:25000)});if(!r.ok)continue;var b=await r.blob();if(b.size&&!/^text\//.test(b.type))return b}catch(e){}
   }
   return null;
+}
+function saveBlob(b,name){
+  var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=fname(name,b);
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},4000);
 }
 window.dlFile=async function(url,name){
   var u=String(url||'');tst('بدأ التحميل...');
   try{
     if(/(t\.me|telegram\.me)\//i.test(u)){var r=await resolveTG(u);u=r&&(r.video||r.audio||r.photo);if(!u)throw 0}
-    var b=await fetchBlob(u);if(!b)throw 0;
-    var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=fname(name,b);
-    document.body.appendChild(a);a.click();
-    setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},4000);tst('تم التحميل ✓');
+    var b=await fetchBlob(u,false);
+    if(!b&&TG_PROXY&&!/^(data|blob):/.test(u)){
+      var a=document.createElement('a');a.href=TG_PROXY+encodeURIComponent(u)+'&dl='+encodeURIComponent(fname(name,{type:''}));
+      document.body.appendChild(a);a.click();a.remove();tst('بدأ التحميل ✓');return;
+    }
+    if(!b&&!/^(data|blob):/.test(u))b=await fetchBlob(u,true);
+    if(!b)throw 0;
+    saveBlob(b,name);tst('تم التحميل ✓');
   }catch(e){
     tst('تعذر التحميل المباشر، فتحنا الملف لتحفظه');
     var l=document.createElement('a');l.href=u&&!/(t\.me|telegram\.me)\//i.test(u)?u:String(url||'');l.target='_blank';l.rel='noopener';l.download=name||'file';document.body.appendChild(l);l.click();l.remove();
   }
 };
+/* إخفاء اسم القناة وشعار تلجرام: قص أعلى وأسفل مشغّل تلجرام المدمج */
+var st=document.createElement('style');
+st.textContent='.detail-player{position:relative}.detail-player iframe[src*="t.me"]{position:absolute;left:0;top:-58px;width:100%!important;height:calc(100% + 460px)!important;min-height:0!important}.anashid-hero.tg{width:100%;height:150px}.anashid-hero.tg iframe{position:absolute;left:0;top:-58px;width:100%!important;height:420px!important;min-height:0!important}.video-card,.anashid-card,.sowar-item,.qa-feed-post,.channel-card{content-visibility:auto;contain-intrinsic-size:auto 250px}';
+document.head.appendChild(st);
+var _oa2=window.openAnashidDetail;
+window.openAnashidDetail=function(){var r=_oa2.apply(this,arguments);try{var h=document.querySelector('#anashidDetailBox .anashid-hero');if(h&&h.querySelector('iframe[src*="t.me"]'))h.classList.add('tg')}catch(e){}return r};
 wrapOpen('openVideoDetail',function(){return videos},'video');
 wrapOpen('openAnashidDetail',function(){return anashid},'audio');
 if(document.readyState==='complete')setTimeout(startTG,500);else window.addEventListener('load',function(){setTimeout(startTG,500)});

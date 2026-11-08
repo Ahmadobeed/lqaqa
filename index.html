@@ -5206,10 +5206,11 @@ function parseMsg(m,post){
 }
 /* جلب ملف منشور واحد (فيديو/صوت/صورة) من رابط t.me/قناة/رقم */
 var RC={};
-async function resolveTG(u){
+async function resolveTG(u,direct){
   var m=String(u).match(/(?:t\.me|telegram\.me)\/(?:s\/)?([A-Za-z0-9_]{4,})\/(\d+)/);if(!m)return null;
   var k=m[1]+'/'+m[2];if(RC[k])return RC[k];
   var W=TG_PROXY+encodeURIComponent('https://t.me/'+k),fb={video:W,audio:W,photo:W,thumb:W+'&thumb=1'};
+  if(direct)return(RC[k]=fb);
   var html=await getHTML('https://t.me/'+k+'?embed=1&mode=tme');if(!html)return(RC[k]=fb);
   var doc=new DOMParser().parseFromString(html,'text/html');
   var el=doc.querySelector('.tgme_widget_message')||doc.body,o=parseMsg(el,k);
@@ -5271,7 +5272,7 @@ function wrapOpen(name,list,field,fail){
     var self=this,args=arguments,it=list().find(function(y){return y.id===id});
     if(it&&!it._r&&/(t\.me|telegram\.me)\//i.test(it.url||'')){
       it._r=1;tst('جاري تجهيز الملف...');
-      resolveTG(it.url).then(function(r){var d=r&&r[field];if(d){it.tgUrl=it.tgUrl||it.url;it.url=d;if(r.fromVideo&&field==='audio')it._ext='.mp4';if(r.thumb&&field==='video'&&!it.thumb)it.thumb=r.thumb;if(r.thumb&&field==='audio'&&!it.img)it.img=r.thumb}}).catch(function(){}).then(function(){if(fail&&/(t\.me|telegram\.me)\//i.test(it.url||'')){it._r=0;fail(it);return}o.apply(self,args)});
+      resolveTG(it.url,field==='audio').then(function(r){var d=r&&r[field];if(d){it.tgUrl=it.tgUrl||it.url;it.url=d;if(r.fromVideo&&field==='audio')it._ext='.mp4';if(r.thumb&&field==='video'&&!it.thumb)it.thumb=r.thumb;if(r.thumb&&field==='audio'&&!it.img)it.img=r.thumb}}).catch(function(){}).then(function(){if(fail&&/(t\.me|telegram\.me)\//i.test(it.url||'')){it._r=0;fail(it);return}o.apply(self,args)});
       return;
     }
     return o.apply(this,arguments);
@@ -5350,7 +5351,7 @@ wrapOpen('openImageDetail',function(){return imagesData},'photo');
 function resolveImgs(){try{imagesData.forEach(function(im){if(im&&!im._r&&/(t\.me|telegram\.me)\//i.test(im.url||'')){im._r=1;resolveTG(im.url).then(function(r){if(r&&r.photo){im.tgUrl=im.url;im.url=r.photo;['renderSowar','renderHome'].forEach(function(f){try{window[f]()}catch(e){}})}else im._r=((im._n=(im._n||0)+1)>3)?1:0}).catch(function(){im._r=((im._n=(im._n||0)+1)>3)?1:0})}})}catch(e){}}
 setInterval(resolveImgs,2500);setTimeout(resolveImgs,800);
 /* تحميل نظامي بامتداد صحيح */
-window.itemDl=function(t,id){var it=(t==='anashid'?anashid:imagesData).find(function(x){return x.id===id});if(!it)return;var ext=it._ext||(t==='anashid'?'.mp3':'.jpg');window.dlFile(it.url,String(it.title||'file').replace(/\.(mp3|mp4|jpg|png)$/i,'')+ext)};
+window.itemDl=function(t,id){var it=(t==='anashid'?anashid:imagesData).find(function(x){return x.id===id});if(!it)return;var ext=it._ext||(t==='anashid'?'.mp3':'.jpg');window.dlFile((t==='anashid'&&/(t\.me|telegram\.me)\//i.test(it.url||''))?TG_PROXY+encodeURIComponent(it.url):it.url,String(it.title||'file').replace(/\.(mp3|mp4|jpg|png)$/i,'')+ext)};
 if(document.readyState==='complete')setTimeout(startTG,500);else window.addEventListener('load',function(){setTimeout(startTG,500)});
 })();
 </script>

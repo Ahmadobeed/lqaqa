@@ -1445,10 +1445,12 @@ function dashView(){
 }
 
 /* ===== منشورات نصية (تُنشر للجميع عبر القاعدة السحابية) ===== */
+let _ltT=0,_ltS='';
 async function loadTexts(){
+ if(Date.now()-_ltT<4000)return;_ltT=Date.now();
  try{
   const rs=await parent.__qaqaAdminPostsGet();
-  if(Array.isArray(rs)){db.texts=rs;if(page==='texts'&&mode==='list')render()}
+  if(Array.isArray(rs)){const g=JSON.stringify(rs.map(r=>[r.id,(r.likes||[]).length,(r.comments||[]).length]));db.texts=rs;if(g!==_ltS){_ltS=g;if(page==='texts'&&mode==='list')render()}}
  }catch(e){}
 }
 function textsView(){
@@ -1481,7 +1483,7 @@ function listView(){
  }
  const total=db[page].length;
  if(!items.length)body=`<div class="empty">لا يوجد محتوى منشور بعد</div>`;
- else if(page==='releases')body=items.map(r=>`<div class="card rel"><video controls playsinline preload="metadata" ${r.thumb?`poster="${url(r.thumb)}"`:''} src="${r.link?esc(r.link):url(r.file)}"></video>
+ else if(page==='releases')body=items.map(r=>`<div class="card rel">${/t\.me\//i.test(r.link||'')?`<div class="ph" style="aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;padding:10px;text-align:center;word-break:break-all">▶ ${esc(r.link)}</div>`:`<video controls playsinline preload="metadata" ${r.thumb?`poster="${url(r.thumb)}"`:''} src="${r.link?esc(r.link):url(r.file)}"></video>`}
    <div class="rt"><div class="tt"><b>${esc(r.title)} ${pinTag(r.pinned)}</b>${r.desc?`<p>${esc(r.desc)}</p>`:''}</div>${menu(r.id,r.pinned)}</div></div>`).join('');
  else if(page==='anashid')body=items.map(n=>`<div class="card nrow" data-id="${n.id}">
    ${n.thumb?`<img src="${url(n.thumb)}" alt="">`:`<div class="ph">${ic('music')}</div>`}
@@ -1671,7 +1673,8 @@ function render(){
  const a=$('#app'),V={dash:dashView,content:contentView,notif:notifView,settings:setView,me:meView,comments:comView,leader:ldrView,admins:admView,msgs:msgView,search:srcView};
  $('#ttl').textContent=TT[page]||SEC[page].t;
  if(page==='users')a.innerHTML=mode==='profile'?profileView():usersView();
- else if(V[page])a.innerHTML=V[page]();
+ else if(page==='texts')a.innerHTML=mode==='form'?textForm():textsView();
+  else if(V[page])a.innerHTML=V[page]();
  else a.innerHTML=mode==='form'?formView():listView();
  if(mode==='form'&&SEC[page])['video','audio','thumb','image'].forEach(setPv);
  if(page==='me')setPv('photo');
@@ -4747,6 +4750,7 @@ window.__cloudPostAdd = async function(text){
     } catch(e){}
   }
   await fs().collection('posts').doc(id).set(rec);
+  window.__qaqaFeed = [rec].concat((window.__qaqaFeed || []).filter(function(x){ return x && x.id !== rec.id; }));
   return true;
 };
 window.__cloudPostReact = async function(id, kind){
@@ -4889,7 +4893,7 @@ function start(){
       var s = await fs().collection('site').doc('state').get();
       var d = (s && s.data()) || {};
       if (d.wipe3 !== '1') {
-        await window.__qaqaWipeContent();
+        /* تم تعطيل المسح التلقائي حتى لا تختفي المنشورات */
         await fs().collection('site').doc('state').set({ wipe3: '1' }, { merge: true });
         console.log('تم تنظيف الموقع (مسح شامل لمرة واحدة)');
       }
@@ -4906,6 +4910,8 @@ else start();
 </script>
 <script>
 /* ============ قسم المنشورات (نصية) ============ */
+function qaNrm(u){ return String(u == null ? '' : u).trim().replace(/^@/, '').toLowerCase(); }
+function qaEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
 var qaOpenCm = {}, qaOpenRb = {};
 function qaMe(){ var a = getActiveAccount(); return (a && a.id !== 'GUEST') ? a : null; }
 function qaTimeAgo(ts){
@@ -4943,7 +4949,7 @@ function qaRenderFeed(){
   var arr = qaFeedData();
   var pc = document.getElementById('postsCount'); if (pc) pc.innerText = '(' + arr.length + ')';
   if (!arr.length) { list.innerHTML = '<div class="q-empty-small">ما في منشورات بعد. كون أول من ينشر!</div>'; return; }
-  var my = qaMe(), myU = my ? nrm(my.username) : '';
+  var my = qaMe(), myU = my ? qaNrm(my.username) : '';
   var dbg = document.getElementById('qaPostsDbg'); if (dbg) dbg.innerText = 'منشورات بالقاعدة: ' + arr.length;
   var out = '', errs = 0, errMsg = '';
   arr.forEach(function(p){
@@ -4977,15 +4983,15 @@ function qaPostCard(p, myU){
     return c;
   });
   p.id = String(p.id == null ? ('p' + Math.random()) : p.id);
-  var mine = myU && nrm(p.by) === myU;
-  var cls = function(kind, arr2){ if (!myU) return 'qa-re'; for (var i = 0; i < arr2.length; i++) { if (nrm(arr2[i]) === myU) return 'qa-re on'; } return 'qa-re'; };
+  var mine = myU && qaNrm(p.by) === myU;
+  var cls = function(kind, arr2){ if (!myU) return 'qa-re'; for (var i = 0; i < arr2.length; i++) { if (qaNrm(arr2[i]) === myU) return 'qa-re on'; } return 'qa-re'; };
   var cmBody = coms.map(function(c){
-    return '<div class="qa-cm"><div class="qa-cm-h"><b>' + esc(c.name || c.by || '') + '</b><span class="qa-t">' + qaTimeAgo(c.ts) + '</span></div>'
-      + '<div class="qa-cm-t">' + esc(c.text || '').replace(/\n/g, '<br>') + '</div>'
+    return '<div class="qa-cm"><div class="qa-cm-h"><b>' + qaEsc(c.name || c.by || '') + '</b><span class="qa-t">' + qaTimeAgo(c.ts) + '</span></div>'
+      + '<div class="qa-cm-t">' + qaEsc(c.text || '').replace(/\n/g, '<br>') + '</div>'
       + (myU ? '<button class="qa-reply-btn" onclick="qaReplyToggle(\'' + p.id + '\',\'' + c.id + '\')">رد</button>' : '')
       + '<div id="rb-' + c.id + '" class="qa-rb' + (qaOpenRb[c.id] ? '' : ' hidden') + '"><input id="ri-' + c.id + '" placeholder="اكتب ردك..." maxlength="500"><button class="msg-btn" onclick="qaSendComment(\'' + p.id + '\',\'' + c.id + '\')">إرسال</button></div>'
       + (c.replies || []).map(function(r){
-          return '<div class="qa-cm qa-cm-r"><div class="qa-cm-h"><b>' + esc(r.name || r.by || '') + '</b><span class="qa-t">' + qaTimeAgo(r.ts) + '</span></div><div class="qa-cm-t">' + esc(r.text || '') + '</div></div>';
+          return '<div class="qa-cm qa-cm-r"><div class="qa-cm-h"><b>' + qaEsc(r.name || r.by || '') + '</b><span class="qa-t">' + qaTimeAgo(r.ts) + '</span></div><div class="qa-cm-t">' + qaEsc(r.text || '') + '</div></div>';
         }).join('')
       + '</div>';
   }).join('');
@@ -4993,9 +4999,9 @@ function qaPostCard(p, myU){
     + '<div style="display:flex;gap:10px;align-items:flex-start">'
     + '<div class="qa-av" id="post-av-' + p.id + '"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;color:var(--blue2)"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div>'
     + '<div style="flex:1;min-width:0">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b style="font-size:14px">' + esc(p.name || p.by || '') + '</b> <span class="qa-t">' + qaTimeAgo(p.ts) + '</span></div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b style="font-size:14px">' + qaEsc(p.name || p.by || '') + '</b> <span class="qa-t">' + qaTimeAgo(p.ts) + '</span></div>'
     + (mine ? '<button class="qa-del" onclick="qaDeletePost(\'' + p.id + '\')">✕</button>' : '') + '</div>'
-    + '<div class="qa-ptext">' + esc(p.text || '').replace(/\n/g, '<br>') + '</div>'
+    + '<div class="qa-ptext">' + qaEsc(p.text || '').replace(/\n/g, '<br>') + '</div>'
     + '<div class="qa-actions">'
     + '<button class="' + cls('like', likes) + '" onclick="qaReact(\'' + p.id + '\',\'like\')">👍 <span>' + likes.length + '</span></button>'
     + '<button class="' + cls('love', loves) + '" onclick="qaReact(\'' + p.id + '\',\'love\')">❤️ <span>' + loves.length + '</span></button>'
@@ -5132,16 +5138,173 @@ window.__qaqaAdminPostDel = function(id){
   }
 })();
 </script>
-<style>body.ssblur *{filter:blur(26px)!important;pointer-events:none!important}
+<style>body.ssblur{filter:blur(26px)!important;pointer-events:none!important}
 img,video,audio{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}</style>
 <script>
 /* حماية من لقطات الشاشة (تخفيف): تعتيم عند إخفاء/تصغير الصفحة أو الخروج منها */
 (function(){function on(){document.body.classList.add('ssblur')}function off(){document.body.classList.remove('ssblur')}
-document.addEventListener('visibilitychange',function(){document.hidden?on():off()});
-window.addEventListener('blur',on);window.addEventListener('focus',off);
+document.addEventListener('visibilitychange',function(){document.hidden&&!document.getElementById('admFr')?on():off()});
+window.addEventListener('focus',off);window.addEventListener('pageshow',off);document.addEventListener('pointerdown',off,true);
 document.addEventListener('contextmenu',function(e){var t=e.target;if(t&&(t.tagName==='IMG'||t.tagName==='VIDEO'||t.tagName==='AUDIO'))e.preventDefault()});
 document.addEventListener('dragstart',function(e){if(e.target&&(e.target.tagName==='IMG'))e.preventDefault()});
 document.addEventListener('keyup',function(e){var k=(e.key||'').toLowerCase();if((navigator.platform||'').match(/mac/i)?e.metaKey:e.ctrlKey){if(k==='s'||k==='p'||k==='u')e.preventDefault()}if(k==='printscreen')on(),setTimeout(off,900)});
+})();
+</script>
+<script id="qaqa-fixes">
+/* ===== إصلاحات: تشغيل/تحميل ملفات تلجرام + استيراد القنوات تلقائياً ===== */
+(function(){
+'use strict';
+/* اختياري: ضع رابط الـ Worker (ملف tg-proxy-worker.js) هنا، مثال: 'https://xxx.workers.dev/?url=' */
+var TG_PROXY='';
+var CH={videos:'alqaqa2026',anashid:'bawaselforsongs'};
+var PX=[];
+if(TG_PROXY)PX.push(function(u){return TG_PROXY+encodeURIComponent(u)});
+PX.push(function(u){return 'https://api.allorigins.win/raw?url='+encodeURIComponent(u)});
+PX.push(function(u){return 'https://corsproxy.io/?url='+encodeURIComponent(u)});
+PX.push(function(u){return 'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)});
+function sig(ms){var c=new AbortController();setTimeout(function(){c.abort()},ms);return c.signal}
+function tst(m){try{toast(m)}catch(e){}}
+function safe(u){u=String(u||'').trim();return /^https:\/\//i.test(u)?u:''}
+function plain(h){return new DOMParser().parseFromString(String(h||''),'text/html').body.textContent.replace(/[<>"]/g,'').replace(/\s+/g,' ').trim()}
+function fd(ts){var d=new Date(ts),p=function(x){return(x<10?'0':'')+x};return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())}
+async function getHTML(u){
+  for(var i=0;i<PX.length;i++){
+    try{var r=await fetch(PX[i](u),{signal:sig(12000)});if(!r.ok)continue;var t=await r.text();if(t&&t.indexOf('tgme_')>-1)return t}catch(e){}
+  }
+  return '';
+}
+function bg(el){if(!el)return '';var m=(el.getAttribute('style')||'').match(/url\(['"]?([^'")]+)/);return m?m[1]:''}
+function parseMsg(m,post){
+  var p=String(m.getAttribute('data-post')||post||'').split('/');if(p.length<2)return null;
+  var q=function(s){return m.querySelector(s)};
+  var v=q('video'),a=q('audio'),te=q('.tgme_widget_message_text'),ti=q('time[datetime]'),dt=q('.tgme_widget_message_document_title');
+  return {ch:p[0],id:+p[1],
+    text:te?plain(te.innerHTML.split(/<br\s*\/?>/i)[0]):'',
+    ts:ti?Date.parse(ti.getAttribute('datetime')):0,
+    video:v?safe(v.getAttribute('src')):'',
+    hasVideo:!!(v||q('.tgme_widget_message_video_wrap,.tgme_widget_message_roundvideo_wrap,.js-message_video')),
+    audio:a?safe(a.getAttribute('src')):'',
+    hasAudio:!!(a||q('.tgme_widget_message_document_wrap,.tgme_widget_message_voice')),
+    thumb:safe(bg(q('.tgme_widget_message_video_thumb'))||bg(q('.tgme_widget_message_roundvideo_thumb'))||(v&&v.getAttribute('poster'))||''),
+    photo:safe(bg(q('.tgme_widget_message_photo_wrap'))),
+    doc:dt?plain(dt.innerHTML):''};
+}
+/* جلب ملف منشور واحد (فيديو/صوت/صورة) من رابط t.me/قناة/رقم */
+var RC={};
+async function resolveTG(u){
+  var m=String(u).match(/(?:t\.me|telegram\.me)\/(?:s\/)?([A-Za-z0-9_]{4,})\/(\d+)/);if(!m)return null;
+  var k=m[1]+'/'+m[2];if(RC[k])return RC[k];
+  var html=await getHTML('https://t.me/'+k+'?embed=1&mode=tme');if(!html)return null;
+  var doc=new DOMParser().parseFromString(html,'text/html');
+  var el=doc.querySelector('.tgme_widget_message')||doc.body,o=parseMsg(el,k);
+  if(!o||!(o.video||o.audio||o.photo))return null;
+  return(RC[k]={video:o.video,audio:o.audio,photo:o.photo,thumb:o.thumb});
+}
+/* استيراد منشورات القناة (آخر ~60 منشور) */
+async function loadChannel(kind){
+  var out=[],before=0;
+  for(var pg=0;pg<3;pg++){
+    var html=await getHTML('https://t.me/s/'+CH[kind]+(before?'?before='+before:''));if(!html)break;
+    var ms=[].slice.call(new DOMParser().parseFromString(html,'text/html').querySelectorAll('.tgme_widget_message[data-post]'));
+    if(!ms.length)break;
+    var min=1e12;
+    ms.forEach(function(m){var o=parseMsg(m);if(!o)return;min=Math.min(min,o.id);if(kind==='videos'?o.hasVideo:o.hasAudio)out.push(o)});
+    before=min;if(min<=1)break;
+  }
+  return out;
+}
+function toItem(kind,o){
+  var link='https://t.me/'+o.ch+'/'+o.id,ts=o.ts||Date.now();
+  var title=(o.text||o.doc||((kind==='videos'?'إصدار ':'أنشودة ')+o.id)).slice(0,80);
+  if(kind==='videos')return{id:7e12+o.id,url:o.video||link,tgUrl:link,title:title,desc:'',date:fd(ts),views:0,likes:0,thumb:o.thumb,comments:[],tg:true};
+  return{id:8e12+o.id,url:o.audio||link,tgUrl:link,title:title,date:fd(ts),likes:0,comments:[],img:o.thumb||o.photo||'',duration:'',tg:true};
+}
+var TGV=[],TGA=[];
+function merge(){
+  try{
+    [[videos,TGV],[anashid,TGA]].forEach(function(p){
+      var arr=p[0],have={};
+      for(var i=arr.length-1;i>=0;i--)if(arr[i]&&arr[i].tg)arr.splice(i,1);
+      arr.forEach(function(x){var k=x.tgUrl||x.url||'';if(/t\.me\//i.test(k))have[k.split('?')[0]]=1});
+      p[1].slice().sort(function(a,b){return b.id-a.id}).forEach(function(it){if(!have[it.tgUrl])arr.push(it)});
+    });
+  }catch(e){}
+  ['renderHome','renderVideos','renderAnashid'].forEach(function(f){try{if(typeof window[f]==='function')window[f]()}catch(e){}});
+}
+async function refresh(){
+  for(var k of ['videos','anashid']){
+    try{
+      var raw=await loadChannel(k);if(!raw.length)continue;
+      var items=raw.map(function(o){return toItem(k,o)});
+      if(k==='videos')TGV=items;else TGA=items;
+      try{localStorage.setItem('qaqa_tg_v1',JSON.stringify({v:TGV,a:TGA}))}catch(e){}
+      merge();
+    }catch(e){}
+  }
+}
+function startTG(){
+  try{var c=JSON.parse(localStorage.getItem('qaqa_tg_v1')||'null');if(c){TGV=c.v||[];TGA=c.a||[];merge()}}catch(e){}
+  refresh();
+  setInterval(function(){if(!document.hidden)refresh()},300000);
+}
+/* فتح فيديو/نشيد: لو الرابط منشور تلجرام نجيب الملف المباشر أولاً */
+function wrapOpen(name,list,field){
+  var o=window[name];if(typeof o!=='function')return;
+  window[name]=function(id,x){
+    var self=this,args=arguments,it=list().find(function(y){return y.id===id});
+    if(it&&!it._r&&/(t\.me|telegram\.me)\//i.test(it.url||'')){
+      it._r=1;tst('جاري تجهيز الملف...');
+      resolveTG(it.url).then(function(r){var d=r&&r[field];if(d){it.tgUrl=it.tgUrl||it.url;it.url=d;if(r.thumb&&field==='video'&&!it.thumb)it.thumb=r.thumb}}).catch(function(){}).then(function(){o.apply(self,args)});
+      return;
+    }
+    return o.apply(this,arguments);
+  };
+}
+window.vthumb=function(v){
+  if(v&&v.thumb)return '<img src="'+v.thumb+'" loading="lazy" referrerpolicy="no-referrer" alt="">';
+  if(v&&/t\.me\//i.test(v.url||''))return '';
+  return '<video src="'+((v&&v.url)||'')+'#t=0.6" preload="metadata" muted playsinline></video>';
+};
+window.videoLoadFail=function(){
+  var v=videos.find(function(x){return x.id===currentVideoId}),box=document.getElementById('detailPlayer'),l=v&&(v.tgUrl||(/t\.me\//i.test(v.url||'')?v.url:''));
+  if(!box)return;
+  box.innerHTML=l?'<iframe src="'+l.split('?')[0]+'?embed=1&mode=tme" style="width:100%;height:100%;border:0;min-height:70vh" allow="autoplay;encrypted-media;fullscreen" allowfullscreen></iframe>':'<div style="padding:30px 16px;text-align:center;color:var(--muted);line-height:1.9">تعذر تشغيل الفيديو<br><small>الرابط مو رابط فيديو مباشر أو محجوب. استخدم رابط منشور تلجرام (t.me/alqaqa2026/رقم) أو mp4 مباشر.</small>'+(v&&v.url?'<br><a href="'+String(v.url).replace(/"/g,'')+'" target="_blank" rel="noopener" style="color:var(--blue2)">فتح الرابط</a>':'')+'</div>';
+};
+/* لو فشل تشغيل ملف صوت مباشر نرجع لمشغل تلجرام المدمج */
+try{document.getElementById('globalAudio').addEventListener('error',function(){
+  var a=anashid.find(function(x){return x.id===currentAnashidId});
+  if(a&&a.tgUrl&&a.url!==a.tgUrl){a.url=a.tgUrl;window.openAnashidDetail(a.id)}
+})}catch(e){}
+/* ===== التحميل المباشر (فيديو/نشيد/صورة) ===== */
+function fname(n,b){
+  var map={'video/mp4':'.mp4','video/webm':'.webm','audio/mpeg':'.mp3','audio/mp4':'.m4a','audio/ogg':'.ogg','image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp'};
+  var e=map[(b.type||'').split(';')[0]]||'';n=String(n||'file').replace(/[\\\/:*?"<>|]+/g,'_');
+  if(e)n=/\.[A-Za-z0-9]{2,4}$/.test(n)?n.replace(/\.[A-Za-z0-9]{2,4}$/,e):n+e;
+  return n;
+}
+async function fetchBlob(u){
+  var urls=[u].concat(/^(data|blob):/.test(u)?[]:PX.map(function(p){return p(u)}));
+  for(var i=0;i<urls.length;i++){
+    try{var r=await fetch(urls[i],{signal:sig(i?90000:30000)});if(!r.ok)continue;var b=await r.blob();if(b.size&&!/^text\//.test(b.type))return b}catch(e){}
+  }
+  return null;
+}
+window.dlFile=async function(url,name){
+  var u=String(url||'');tst('بدأ التحميل...');
+  try{
+    if(/(t\.me|telegram\.me)\//i.test(u)){var r=await resolveTG(u);u=r&&(r.video||r.audio||r.photo);if(!u)throw 0}
+    var b=await fetchBlob(u);if(!b)throw 0;
+    var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=fname(name,b);
+    document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},4000);tst('تم التحميل ✓');
+  }catch(e){
+    tst('تعذر التحميل المباشر، فتحنا الملف لتحفظه');
+    var l=document.createElement('a');l.href=u&&!/(t\.me|telegram\.me)\//i.test(u)?u:String(url||'');l.target='_blank';l.rel='noopener';l.download=name||'file';document.body.appendChild(l);l.click();l.remove();
+  }
+};
+wrapOpen('openVideoDetail',function(){return videos},'video');
+wrapOpen('openAnashidDetail',function(){return anashid},'audio');
+if(document.readyState==='complete')setTimeout(startTG,500);else window.addEventListener('load',function(){setTimeout(startTG,500)});
 })();
 </script>
 </body></html>

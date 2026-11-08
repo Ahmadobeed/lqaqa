@@ -5339,6 +5339,9 @@ wrapOpen('openVideoDetail',function(){return videos},'video');
 function anaFail(a){var b=document.getElementById('anashidDetailBox');if(!b)return;
   b.innerHTML='<div style="padding:18px;text-align:center"><div class="anashid-hero" style="display:flex;align-items:center;justify-content:center">'+(a.img?'<img src="'+a.img+'" referrerpolicy="no-referrer">':ico('music',64))+'</div><h2 style="color:#fff;margin-top:12px">'+escH(a.title)+'</h2><div class="watermark">القعقاع | Al-Qaqa</div><p style="color:var(--muted);line-height:2;margin-top:14px">تعذر تشغيل هذه الأنشودة حالياً.<br><small>جرّب مرة ثانية بعد قليل.</small></p><button class="add-btn" id="anaRetry">إعادة المحاولة</button></div>';
   document.getElementById('anaRetry').onclick=function(){a._r=0;window.openAnashidDetail(a.id)};
+  var dg=document.createElement('p');dg.dir='ltr';dg.style.cssText='color:var(--muted);font-size:11px;margin-top:12px;word-break:break-all;opacity:.8';dg.textContent='...';b.firstChild.appendChild(dg);
+  var su=String(a.url||'');
+  (/(t\.me|telegram\.me)\//i.test(su)?Promise.resolve('unresolved link'):fetch(su,{headers:{Range:'bytes=0-0'}}).then(function(r){return r.status<400?('file reachable '+r.status+' '+(r.headers.get('content-type')||'')):r.text().then(function(t){return r.status+' '+t.slice(0,160)})})).catch(function(e){return 'worker unreachable: '+(e&&e.message||e)}).then(function(m){dg.textContent=m});
   try{globalAudio.pause();playingAnashidId=null}catch(e){}
   goPage('anashiddetail',null)}
 wrapOpen('openAnashidDetail',function(){return anashid},'audio',anaFail);

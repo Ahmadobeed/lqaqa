@@ -5214,7 +5214,7 @@ async function resolveTG(u){
   var doc=new DOMParser().parseFromString(html,'text/html');
   var el=doc.querySelector('.tgme_widget_message')||doc.body,o=parseMsg(el,k);
   if(!o||!(o.video||o.audio||o.photo))return(RC[k]=fb);
-  return(RC[k]={video:o.video,audio:o.audio||o.video,photo:o.photo,thumb:o.thumb,fromVideo:!o.audio&&!!o.video});
+  return(RC[k]={video:o.video||W,audio:o.audio||o.video||W,photo:o.photo||W,thumb:o.thumb||o.photo||fb.thumb,fromVideo:!o.audio&&!!o.video});
 }
 /* استيراد منشورات القناة (آخر ~60 منشور) */
 async function loadChannel(kind){

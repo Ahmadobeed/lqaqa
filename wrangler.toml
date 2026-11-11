@@ -1,0 +1,11 @@
+name = "al-qaqa"            # نفس اسم الـ Worker الحالي → الرابط القديم al-qaqa.al-qaqa.workers.dev يبقى شغال
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+TURSO_URL     = "libsql://alqaqa-a-137-md.aws-sa-east-1.turso.io"
+ALLOWED_CHATS = "alqaqa2026,bawaselforsongs"   # القنوات المسموحة (يوزرنيم بدون @)
+ADMIN_USERS   = "ضع_يوزرنيمك_هنا"               # حسابات الإدارة (تستقبل إشعار الرسائل)، افصل بفاصلة
+VAPID_SUBJECT = "mailto:you@example.com"
+VAPID_PUBLIC  = "الصق_المفتاح_العام_من_gen-vapid"
+# أسرار (لا تُكتب هنا): wrangler secret put BOT_TOKEN | WEBHOOK_SECRET | TURSO_TOKEN | VAPID_PRIVATE_JWK | ADMIN_KEY

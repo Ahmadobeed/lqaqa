@@ -1,6 +1,8 @@
-<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>القعقاع | Al-Qaqa</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
-<style>:root{--maxw:100%}@media(min-width:768px){:root{--maxw:820px}}@media(min-width:1100px){:root{--maxw:1080px}}
-html,body{direction:rtl!important;text-align:right}
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><link rel="manifest" id="pwa-manifest">
+<meta name="theme-color" content="#080F1E">
+<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#0A1B35">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>القعقاع | Al-Qaqa</title><style>html,body{direction:rtl!important;text-align:right}
 :root{--bg:#0A1120;--bg2:#0D1528;--card:#131E36;--card2:#1A2947;--border:#223457;--blue:#3A86FF;--blue2:#5DA2FF;--text:#E8EEF9;--muted:#8AA0C2}
 body.light{--bg:#F2F4F8;--bg2:#fff;--card:#fff;--card2:#F8FAFC;--border:#E2E8F0;--text:#0F172A;--muted:#64748B}
 *{margin:0;padding:0;box-sizing:border-box;font-family:'Cairo',system-ui}
@@ -296,7 +298,7 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
   var TURSO_URL   = 'libsql://alqaqa-a-137-md.aws-sa-east-1.turso.io';
   var TURSO_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTQxMzE0MDIsImlkIjoiMDFhMWI4ZTItMDYwMS03NjQ1LWFiNjktNzU2YWY2NjM5ZjM5Iiwia2lkIjoiaEVRbkF2Umh5TEVPNzM0bnFBMzh4bmNCODQ5cmhhQ0VxeklvVWU0WEFyTSIsInJpZCI6ImFkMTBhMDA2LTllYTQtNGY2ZS1hODc2LWNhMjVjMWJhYjk4YyJ9.1rTqcDLdWf0DGOTbXwXzjPTfi1Ui0WuAsRCTYEIXsQulbxsvzS9Mtm5vGAG6u3PdzaXB5Mf8UX8xd1AslOvXAg';
   var HTTP = TURSO_URL.replace(/^libsql:\/\//, 'https://').replace(/^wss?:\/\//, 'https://');
-  var POLL = 15000;
+  var POLL = 3000;  /* كان 15000 */
 
   function err(code, msg){ var e = new Error(msg || code); e.code = code; return e; }
   function arg(v){
@@ -308,23 +310,43 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
   function stmtOf(s){ return { sql: s.sql, args: (s.args || []).map(arg) }; }
   function rowsOf(r){ return ((r && r.rows) || []).map(function(row){ return row.map(cell); }); }
   function post(requests){
+    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var tm = ctl ? setTimeout(function(){ ctl.abort(); }, 20000) : null;   /* مهلة: لا طلب يعلق للأبد */
     return fetch(HTTP + '/v2/pipeline', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TURSO_TOKEN },
-      body: JSON.stringify({ requests: requests.concat([{ type: 'close' }]) })
+      body: JSON.stringify({ requests: requests.concat([{ type: 'close' }]) }),
+      signal: ctl ? ctl.signal : undefined
     }).then(function(r){
+      clearTimeout(tm);
       if (r.status === 401 || r.status === 403) throw err('permission-denied', 'التوكن غير صالح');
       if (!r.ok) throw err('unavailable', 'HTTP ' + r.status);
       return r.json();
-    }, function(){ throw err('unavailable', 'network'); });
+    }, function(){ clearTimeout(tm); throw err('unavailable', 'network'); });
+  }
+  /* دمج كل الاستعلامات المتزامنة (مراقبات المحتوى/المستخدمين/الإشعارات…) في طلب شبكة واحد */
+  var Q = [], QT = null;
+  function flushQ(){
+    var batch = Q; Q = []; QT = null;
+    var reqs = [];
+    batch.forEach(function(b){ b.off = reqs.length; b.stmts.forEach(function(s){ reqs.push({ type: 'execute', stmt: stmtOf(s) }); }); });
+    post(reqs).then(function(j){
+      batch.forEach(function(b){
+        try {
+          b.res(b.stmts.map(function(_, i){
+            var x = j.results[b.off + i];
+            if (!x || x.type === 'error') throw err('internal', (x && x.error && x.error.message) || 'error');
+            var res = x.response.result;
+            return { rows: rowsOf(res), n: res.affected_row_count || 0 };
+          }));
+        } catch(e){ b.rej(e); }
+      });
+    }, function(e){ batch.forEach(function(b){ b.rej(e); }); });
   }
   function exec(stmts){
-    return post(stmts.map(function(s){ return { type: 'execute', stmt: stmtOf(s) }; })).then(function(j){
-      return j.results.slice(0, stmts.length).map(function(x){
-        if (x.type === 'error') throw err('internal', (x.error && x.error.message) || 'error');
-        var res = x.response.result;
-        return { rows: rowsOf(res), n: res.affected_row_count || 0 };
-      });
+    return new Promise(function(res, rej){
+      Q.push({ stmts: stmts, res: res, rej: rej });
+      if (!QT) QT = setTimeout(flushQ, 25);
     });
   }
   /* عدّة عمليات كمعاملة واحدة (ذرّية) */
@@ -345,7 +367,8 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
   var initP = null;
   function run(stmts){
     if (!initP) initP = exec([
-      { sql: 'CREATE TABLE IF NOT EXISTS docs (col TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, upd INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (col, id))' }
+      { sql: 'CREATE TABLE IF NOT EXISTS docs (col TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, upd INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (col, id))' },
+      { sql: 'CREATE INDEX IF NOT EXISTS docs_col_upd ON docs(col, upd)' }
     ]).catch(function(e){ initP = null; throw e; });
     return initP.then(function(){ return exec(stmts); });
   }
@@ -357,6 +380,10 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
 
   var listeners = [];
   function poke(){ listeners.forEach(function(l){ l.poke(); }); }
+  /* رجوع للتطبيق / رجوع النت: تحديث فوري بدل انتظار الدورة */
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) poke(); });
+  window.addEventListener('online', poke);
+  window.addEventListener('focus', poke);
 
   function DocSnap(id, data){ this.id = id; this.exists = data !== null; this._d = data; this.metadata = { fromCache: false, hasPendingWrites: false }; }
   DocSnap.prototype.data = function(){ return this._d === null ? undefined : JSON.parse(JSON.stringify(this._d)); };
@@ -367,7 +394,7 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
   function listen(getFn, fpFn, cb, onErr){
     var stopped = false, lastFp = null, timer = null, busy = false;
     var self = { poke: function(){ clearTimeout(timer); lastFp = null === lastFp ? lastFp : lastFp; tick(true); } };
-    function next(){ if (!stopped) timer = setTimeout(function(){ tick(); }, POLL); }
+    function next(){ if (!stopped) timer = setTimeout(function(){ tick(); }, POLL - (Date.now() % POLL) + 5); }
     function tick(force){
       if (stopped || busy) return;
       if (document.hidden && lastFp !== null && !force) return next();
@@ -456,7 +483,7 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
           return new QSnap(q.docs, ch);
         });
       },
-      function(){ return run([{ sql: 'SELECT count(*), coalesce(max(upd),0), coalesce(sum(length(data)),0) FROM docs ' + w.sql, args: w.args }]).then(function(r){ return r[0].rows[0].join(':'); }); },
+      function(){ return run([{ sql: 'SELECT count(*), coalesce(max(upd),0) FROM docs ' + w.sql, args: w.args }]).then(function(r){ return r[0].rows[0].join(':'); }); },
       cb, onErr);
   };
 
@@ -526,7 +553,7 @@ body.light #sup .bb{color:#111b21}body.light #sup .bb.u{background:#d9fdd3}body.
 </head><body>
 <div id="waNotif"><div style="width:44px;height:44px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;flex:0 0 44px"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div><div style="flex:1;text-align:right"><b id="waNotifName" style="color:#fff">اسم</b><br><small id="waNotifText" style="color:#CBD5E1">رسالة</small></div><div style="display:flex;gap:6px;flex-direction:column"><button class="wa-btn view" onclick="waViewMsg()">عرض</button><button class="wa-btn read" onclick="waMarkRead()">مقروءة</button></div></div>
 <div id="gateBox" class="container"><div class="gate-box"><div style="text-align:center;padding:12px 10px;line-height:1.9;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:14px"><div style="font-family:'Amiri',serif;font-size:16px;font-weight:700">السلام عليكم ورحمة الله تعالى وبركاته</div><div style="font-size:13px">حياكم الله</div><div style="font-size:26px;font-weight:900;color:var(--blue2)">القعقاع | Al-Qaqa</div><div style="font-size:13px;font-weight:700;color:var(--blue2)">منصة جهادية ودعوية</div><div style="font-size:13px;color:var(--muted)">استمتعو في اكتشافها - لاتنسونا من دعائكم</div><div style="font-size:11px;color:var(--muted);opacity:0.55">المطور: زمزم ابو القعقاع</div></div><button class="gate-btn primary" onclick="showGateForm('login')">تسجيل دخول</button><button class="gate-btn secondary" onclick="showGateForm('create')">انشاء حساب</button><button class="gate-btn secondary" style="background:transparent;border:1px dashed var(--blue)" onclick="enterAsGuest()">الدخول كضيف</button></div></div>
-<div id="authBox" class="container hidden"><h1>القعقاع | Al-Qaqa</h1><div class="card"><button class="back-btn" onclick="backToGate()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> رجوع</button><div id="createForm" class="hidden"><div style="text-align:center"><div class="pic-circle-wrap"><div class="pic-circle" onclick="document.getElementById('regPicInput').click()" style="width:84px;height:84px"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px;color:var(--blue2)"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><small style="font-size:11px;color:var(--muted)">صورة</small><img id="regPicPreview" class="hidden"></div></div><input type="file" id="regPicInput" accept="image/*" class="hidden" onchange="previewRegPic(this)"><p style="text-align:center;color:var(--muted);font-size:12px">صورة الحساب (اختياري)</p></div><label>اللقب *</label><input id="regNick" maxlength="30" autocomplete="off" placeholder="مثال: أبو القعقاع"><label>المحافظة *</label><select id="regGov"><option value="">اختر المحافظة</option><option>دمشق</option><option>ريف دمشق</option><option>حلب</option><option>حمص</option><option>حماة</option><option>اللاذقية</option><option>طرطوس</option><option>إدلب</option><option>دير الزور</option><option>الرقة</option><option>الحسكة</option><option>السويداء</option><option>درعا</option><option>القنيطرة</option></select><label>العمر *</label><input id="regAge" type="number" inputmode="numeric" min="10" max="100" placeholder="مثال: 25"><label>اسم المستخدم *</label><input id="regUser" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="مثال: ahk_wg" style="text-align:left"><label>كود التفعيل *</label><input id="regCode" dir="ltr" autocomplete="off" autocapitalize="characters" placeholder="اكتب كود التفعيل" style="text-align:center;letter-spacing:3px;text-transform:uppercase"><button class="btn-create" id="regBtn" onclick="enterApp()">انشاء حساب</button><a class="qa-tg" href="https://t.me/A_137_MD" target="_blank" rel="noopener">للحصول على رمز التفعيل</a></div><div id="loginForm" class="hidden"><label>اسم المستخدم</label><input id="loginUser" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="اسم المستخدم" style="text-align:left"><label>كود التفعيل</label><input id="loginCode" dir="ltr" autocomplete="off" autocapitalize="characters" placeholder="اكتب كود التفعيل" style="text-align:center;letter-spacing:3px;text-transform:uppercase"><button class="btn-create" id="loginBtn" onclick="doLogin()">تسجيل دخول</button><a class="qa-tg" href="https://t.me/A_137_MD" target="_blank" rel="noopener">للحصول على رمز التفعيل</a><p id="loginErr" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div><p id="err" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div></div>
+<div id="authBox" class="container hidden"><h1>القعقاع | Al-Qaqa</h1><div class="card"><button class="back-btn" onclick="backToGate()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> رجوع</button><div id="createForm" class="hidden"><div style="text-align:center"><div class="pic-circle-wrap"><div class="pic-circle" onclick="document.getElementById('regPicInput').click()" style="width:84px;height:84px"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px;color:var(--blue2)"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><small style="font-size:11px;color:var(--muted)">صورة</small><img id="regPicPreview" class="hidden"></div></div><input type="file" id="regPicInput" accept="image/*" class="hidden" onchange="previewRegPic(this)"><p style="text-align:center;color:var(--muted);font-size:12px">صورة الحساب (اختياري)</p></div><label>اللقب *</label><input id="regNick" maxlength="30" autocomplete="off" placeholder="مثال: أبو القعقاع"><label>المحافظة *</label><select id="regGov"><option value="">اختر المحافظة</option><option>دمشق</option><option>ريف دمشق</option><option>حلب</option><option>حمص</option><option>حماة</option><option>اللاذقية</option><option>طرطوس</option><option>إدلب</option><option>دير الزور</option><option>الرقة</option><option>الحسكة</option><option>السويداء</option><option>درعا</option><option>القنيطرة</option></select><label>العمر *</label><input id="regAge" type="number" inputmode="numeric" min="10" max="100" placeholder="مثال: 25"><label>اسم المستخدم *</label><input id="regUser" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="مثال: ahk_wg" style="text-align:left"><label>كود التفعيل *</label><input id="regCode" dir="ltr" oninput="var p=this.selectionStart;this.value=this.value.toUpperCase();try{this.setSelectionRange(p,p)}catch(e){}" autocomplete="off" autocapitalize="characters" placeholder="اكتب كود التفعيل" style="text-align:center;letter-spacing:3px;text-transform:uppercase"><button class="btn-create" id="regBtn" onclick="enterApp()">انشاء حساب</button><a class="qa-tg" href="https://t.me/Al_Qaqa_1448" target="_blank" rel="noopener">للحصول على رمز التفعيل</a></div><div id="loginForm" class="hidden"><label>اسم المستخدم</label><input id="loginUser" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="اسم المستخدم" style="text-align:left"><label>كود التفعيل</label><input id="loginCode" dir="ltr" oninput="var p=this.selectionStart;this.value=this.value.toUpperCase();try{this.setSelectionRange(p,p)}catch(e){}" autocomplete="off" autocapitalize="characters" placeholder="اكتب كود التفعيل" style="text-align:center;letter-spacing:3px;text-transform:uppercase"><button class="btn-create" id="loginBtn" onclick="doLogin()">تسجيل دخول</button><a class="qa-tg" href="https://t.me/Al_Qaqa_1448" target="_blank" rel="noopener">للحصول على رمز التفعيل</a><p id="loginErr" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div><p id="err" style="color:#ff5b5b;text-align:center;margin-top:10px"></p></div></div>
 <div id="mainApp" class="hidden"><div class="container"><div id="globalHeader" class="global-header"><div class="header-left"><div class="header-btn" onclick="goPage('settings',null)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div><div class="header-btn" onclick="toggleTheme()"><span id="themeIcon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span></div><div class="header-btn" onclick="goPage('notifs',null)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><div id="notifDot" class="dot hidden"></div></div><div class="header-btn" onclick="goPage('searchpage',null)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div></div><div class="header-title">القعقاع | Al-Qaqa<small>Al-Qaqa</small></div><div style="position:relative"><div class="header-avatar" id="headerAvatar" onclick="toggleAccountsDropdown(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div><div id="accountsDropdown" class="accounts-dropdown hidden"></div></div></div><div id="marqueeBar" class="marquee-bar"><div class="marquee-track">عن أبي بكر قال: قال رسول الله ﷺ: «ما ترك قوم الجهاد إلا عمهم الله بالعذاب» &nbsp; • &nbsp; عن أبي بكر قال: قال رسول الله ﷺ: «ما ترك قوم الجهاد إلا عمهم الله بالعذاب»</div></div>
 <div class="dhikr-bar"><div class="dhikr-track"><div class="dhikr-grp"><span>سبحان الله وبحمده</span><i>|</i><span>سبحان الله العظيم</span><i>|</i><span>اللهم جهاد في سبيلك وابتغاء لمرضاتك</span><i>|</i><span>الأقصى ينتظركم فتجهزو</span><i>|</i></div><div class="dhikr-grp"><span>سبحان الله وبحمده</span><i>|</i><span>سبحان الله العظيم</span><i>|</i><span>اللهم جهاد في سبيلك وابتغاء لمرضاتك</span><i>|</i><span>الأقصى ينتظركم فتجهزو</span><i>|</i></div></div></div>
 <div id="page-settings" class="page hidden"><button class="back-btn" onclick="goBack()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> رجوع</button><h2 style="text-align:center;color:#fff">اعدادات</h2><div class="post-box"><b style="color:#fff">حسابي الحالي</b><div id="currentAccountBox"></div><div id="otherAccountsBox" class="hidden"></div><button id="toggleAccountsBtn" class="add-btn" style="background:var(--card2);border:1px solid var(--blue);color:var(--blue2);padding:10px" onclick="toggleOtherAccounts()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="m6 9 6 6 6-6"/></svg> عرض كل حساباتي</button></div><div class="set-item" onclick="goPage('terms',null)"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg> الشروط والاحكام</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></div><div class="set-item" onclick="goPage('about',null)"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg> حول التطبيق</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></div><div class="set-item" onclick="window.open(TG_CONTACT,'_blank')"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg> تواصل معنا عبر تيليجرام</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></div><div class="set-item" onclick="goPage('feedback',null)"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/></svg> اقتراحات واراء - قيمنا</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></div><div class="set-item"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg> المظهر ليلي / نهاري</span><button onclick="toggleTheme()" style="padding:7px 12px;background:var(--blue);color:#fff;border:none;border-radius:20px;cursor:pointer">تبديل</button></div><div class="set-item" onclick="deleteAccount()" style="color:#ff5b5b"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg> حذف الحساب</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></div><div class="set-item" onclick="confirmExit()"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg> تسجيل الخروج</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></div></div>
@@ -660,18 +687,18 @@ function renderSowar(){updateCounts();let list=document.getElementById('sowarLis
 function loadMoreSowar(){imgLimit+=20;renderSowar();}
 function renderHome(){updateCounts();let h=document.getElementById('homeContent');if(!h)return;h.innerHTML='<div class="home-section"><div class="home-head"><h2>اصدارات <span class="small-count">('+videos.length+')</span></h2><button onclick="goPage(\'isdarat\',null)">الكل '+ico('chevL',14)+'</button></div><div class="h-scroll">'+videos.slice(0,3).map(function(v){return '<div class="video-card h-video" onclick="openVideoDetail('+v.id+',\'home\')"><div class="video-thumb">'+vthumb(v)+'</div><div class="video-info"><div class="video-title">'+v.title+'</div><div class="watermark">القعقاع | Al-Qaqa</div></div></div>'}).join("")+'</div></div><div class="home-section"><div class="home-head"><h2>اناشيد <span class="small-count">('+anashid.length+')</span></h2><button onclick="goPage(\'anashid\',null)">الكل '+ico('chevL',14)+'</button></div><div class="h-scroll">'+anashid.slice(0,3).map(function(a){return '<div class="anashid-card" style="flex:0 0 280px;margin-top:0" onclick="openAnashidDetail('+a.id+',\'home\')"><div class="anashid-top">'+(a.img?'<img class="anashid-img" src="'+a.img+'">':'<div class="anashid-img-div">'+ico('music',26)+'</div>')+'<div class="anashid-mid"><div class="anashid-title">'+a.title+'</div><div class="watermark">القعقاع | Al-Qaqa</div></div></div></div>'}).join("")+'</div></div><div class="home-section"><div class="home-head"><h2>صور <span class="small-count">('+imagesData.length+')</span></h2><button onclick="goPage(\'sowar\',null)">الكل '+ico('chevL',14)+'</button></div><div class="h-scroll">'+imagesData.slice(0,4).map(function(im){return '<div class="h-img" onclick="openImageFull(\''+im.url+'\')"><img src="'+im.url+'"><div>'+im.title+'<span class="watermark" style="display:block;color:#fff">القعقاع | Al-Qaqa</span></div></div>'}).join("")+'</div></div>';}
 function openImageFull(url){showModal("صورة",url);}
-function openVideoDetail(id,origin){let v=videos.find(function(x){return x.id===id});if(!v)return;currentVideoId=id;lastOrigin=origin||'isdarat';let VS=String(v.url||''),TG=/t\.me\//i.test(VS),YT=/youtube\.com\/embed\//i.test(VS);document.getElementById('detailPlayer').innerHTML=(TG||YT)?'<iframe src="'+(TG?VS.split('?')[0]+'?embed=1&mode=tme':VS)+'" style="width:100%;height:100%;border:0;min-height:70vh" allow="autoplay;encrypted-media;fullscreen" allowfullscreen></iframe>':'<video src="'+v.url+'" controls autoplay onerror="videoLoadFail()" style="width:100%;height:100%"></video>';document.getElementById('detailTitle').innerText=v.title;document.getElementById('detailDate').innerText=v.date+' • '+v.views+' مشاهدة';document.getElementById('likeCount').innerText=v.likes;document.getElementById('commentCount').innerText=v.comments.length;refreshActionStates();document.getElementById('commentsList').innerHTML=v.comments.map(function(c){return '<div class="comment-box"><b>@'+c.user+'</b><br>'+c.text+'</div>'}).join("");document.getElementById('suggestList').innerHTML=videos.filter(function(x){return x.id!==id}).slice(0,3).map(function(sv){return '<div class="video-card" onclick="openVideoDetail('+sv.id+',\''+origin+'\')"><div class="video-thumb">'+vthumb(sv)+'</div><div class="video-info"><div class="video-title">'+sv.title+'</div><div class="watermark">القعقاع | Al-Qaqa</div></div></div>'}).join("");goPage('videodetail',null);}
-function likeCurrent(){if(guestBlock())return;let v=videos.find(function(x){return x.id===currentVideoId});if(v){if(v.liked){v.liked=false;v.likes--;}else{v.liked=true;v.likes++;}document.getElementById('likeCount').innerText=v.likes;refreshActionStates();}}
+function tgProxyUrl(link){try{return WORKER+'/?url='+encodeURIComponent(String(link||'').split('?')[0])}catch(e){return ''}}
+function tgEmbedUrl(link){return String(link||'').split('?')[0]+'?embed=1&mode=tme'}
+function tgVideoFail(){try{var l=window.__tgFailLink||'';document.getElementById('detailPlayer').innerHTML='<iframe src="'+tgEmbedUrl(l)+'" style="width:100%;height:100%;border:0;min-height:70vh" allow="autoplay;encrypted-media;fullscreen" allowfullscreen></iframe>'}catch(e){videoLoadFail()}}
+function openVideoDetail(id,origin){let v=videos.find(function(x){return x.id===id});if(!v)return;currentVideoId=id;lastOrigin=origin||'isdarat';let VS=String(v.url||''),TG=/t\.me\//i.test(VS),YT=/youtube\.com\/embed\//i.test(VS);window.__tgFailLink=VS;document.getElementById('detailPlayer').innerHTML=TG?'<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px">جاري تحميل الفيديو...</div>':(YT?'<iframe src="'+VS+'" style="width:100%;height:100%;border:0;min-height:70vh" allow="autoplay;encrypted-media;fullscreen" allowfullscreen></iframe>':'<video src="'+v.url+'" controls autoplay onerror="videoLoadFail()" style="width:100%;height:100%"></video>');document.getElementById('detailTitle').innerText=v.title;document.getElementById('detailDate').innerText=v.date+' • '+(v.views||0)+' مشاهدة';document.getElementById('likeCount').innerText=v.likes||0;document.getElementById('commentCount').innerText=(v.comments||[]).length;document.getElementById('commentsList').innerHTML=(v.comments||[]).map(function(c){return '<div class="comment-box"><b>'+escH(c.user||'')+'</b><br>'+escH(c.text||'')+'</div>'}).join('');let others=videos.filter(function(x){return x.id!==id}).sort(function(){return Math.random()-.5}).slice(0,3);document.getElementById('suggestList').innerHTML=others.map(function(o){return '<div class="video-card" onclick="openVideoDetail('+o.id+',\'isdarat\')"><div class="video-thumb">'+vthumb(o)+'</div><div class="video-info"><div class="video-title">'+escH(o.title)+'</div><div class="watermark">القعقاع | Al-Qaqa</div></div></div>'}).join('');refreshActionStates();goPage('videodetail',null);}function likeCurrent(){if(guestBlock())return;let v=videos.find(function(x){return x.id===currentVideoId});if(v){if(v.liked){v.liked=false;v.likes--;}else{v.liked=true;v.likes++;}document.getElementById('likeCount').innerText=v.likes;refreshActionStates();}}
 function videoLoadFail(){document.getElementById('detailPlayer').innerHTML='<div style="padding:34px 18px;text-align:center;color:var(--muted);line-height:2.1;font-size:14px"><b style="color:var(--text)">تعذر تشغيل الفيديو</b><br>الرابط مش ملف فيديو مباشر (مثلاً رابط تلجرام).<br>انشره من لوحة التحكم برابط مباشر ينتهي بـ <b>.mp4</b> (مثلاً Google Drive بيتحول تلقائياً).</div>'}
 function refreshActionStates(){let v=videos.find(function(x){return x.id===currentVideoId});let lb=document.getElementById('likeBtn');if(lb)lb.classList.toggle('active',!!(v&&v.liked));let fb=document.getElementById('favBtn');if(fb)fb.classList.toggle('active',favorites.videos.has(currentVideoId));}
 function toggleFav(type,id){let s=favorites[type];let had=s.has(id);if(had)s.delete(id);else s.add(id);refreshActionStates();showModal("مفضلة",had?"انحذفت من المفضلة":"انضافت للمفضلة");}
 function toggleCommentsView(){document.getElementById('commentsSection').classList.toggle('hidden');}
 function addComment(){let inp=document.getElementById('commentInput');let txt=inp.value.trim();if(!txt)return;let v=videos.find(function(x){return x.id===currentVideoId});let me=getActiveAccount();let un=me?me.username:"ضيف";let filtered=bannedWords.reduce(function(a,w){return a.split(w).join("***")},txt);v.comments.push({user:un,text:filtered});inp.value="";openVideoDetail(currentVideoId,lastOrigin);}
 function shareCurrent(){let v=videos.find(function(x){return x.id===currentVideoId});if(v)copyText("https://al-qaqa.app/video/"+v.id);showModal("تم النسخ","رابط الفيديو اننسخ");}
-function downloadCurrentDirect(){let v=videos.find(function(x){return x.id===currentVideoId});if(v){let a=document.createElement('a');a.href=v.url;a.download=v.title+".mp4";a.click();}}
-function togglePubFollow(){pubFollowing=!pubFollowing;document.getElementById('pubFollowBtn').innerText=pubFollowing?'تمت المتابعة':'متابعة';document.getElementById('pubFollowBtn').classList.toggle('following',pubFollowing);}
-function openAnashidDetail(id,origin){let a=anashid.find(function(x){return x.id===id});if(!a)return;currentAnashidId=id;lastOrigin=origin||'anashid';let box=document.getElementById('anashidDetailBox');let TG=/t\.me\//i.test(a.url||'');box.innerHTML='<div style="padding:14px"><div class="anashid-hero">'+(TG?'<iframe src="'+a.url.split('?')[0]+'?embed=1&mode=tme" style="width:100%;height:100%;border:0;min-height:50vh" allow="autoplay;encrypted-media;fullscreen" allowfullscreen></iframe>':(a.img?'<img src="'+a.img+'">':'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted)">'+ico('music',64)+'</div>'))+'</div><h2 style="color:#fff;text-align:center;margin-top:12px">'+a.title+'</h2><div class="watermark" style="text-align:center">القعقاع | Al-Qaqa</div><p style="text-align:center;color:var(--muted);margin-top:4px"><span style="display:inline-flex;align-items:center;gap:5px">'+a.date+' • '+a.likes+' '+ico('like',14)+'</span></p>'+(TG?'':'<div class="progress-bar" style="margin-top:14px" onclick="seekAnashid(event)"><div class="progress-fill" id="anashidProg"></div></div><div class="time-row"><span id="curTime">0:00</span><span>'+a.duration+'</span></div><div class="controls-row" style="justify-content:center;gap:22px"><button class="ctrl-small" onclick="openAnaMenu(event,'+a.id+')">'+ico('dots',20)+'</button><button class="ctrl-main" id="mainPlayBtn" onclick="togglePlayAnashid()">'+ico('play',30)+'</button><span style="width:44px;display:block"></span></div>')+'</div>';goPage('anashiddetail',null);playingAnashidId=TG?null:id;if(!TG){globalAudio.src=a.url;globalAudio.playbackRate=currentSpeed;globalAudio.play();}else globalAudio.pause();}
-function togglePlayAnashid(){if(globalAudio.paused)globalAudio.play();else globalAudio.pause();}
+function downloadCurrentDirect(){let v=videos.find(function(x){return x.id===currentVideoId});if(v){let a=document.createElement('a');a.href=/t\.me\//i.test(v.url||'')?tgProxyUrl(v.url):v.url;a.download=v.title+".mp4";a.click();}}function togglePubFollow(){pubFollowing=!pubFollowing;document.getElementById('pubFollowBtn').innerText=pubFollowing?'تمت المتابعة':'متابعة';document.getElementById('pubFollowBtn').classList.toggle('following',pubFollowing);}
+function openAnashidDetail(id,origin){let a=anashid.find(function(x){return x.id===id});if(!a)return;currentAnashidId=id;lastOrigin=origin||'anashid';let box=document.getElementById('anashidDetailBox');let TG=/t\.me\//i.test(a.url||'');box.innerHTML='<div style="padding:14px"><div class="anashid-hero">'+(a.img?'<img src="'+a.img+'">':'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted)">'+ico('music',64)+'</div>')+'</div><h2 style="color:#fff;text-align:center;margin-top:12px">'+a.title+'</h2><div class="watermark" style="text-align:center">القعقاع | Al-Qaqa</div><p style="text-align:center;color:var(--muted);margin-top:4px"><span style="display:inline-flex;align-items:center;gap:5px">'+a.date+' • '+a.likes+' '+ico('like',14)+'</span></p><div class="progress-bar" style="margin-top:14px" onclick="seekAnashid(event)"><div class="progress-fill" id="anashidProg"></div></div><div class="time-row"><span id="curTime">0:00</span><span>'+a.duration+'</span></div><div class="controls-row" style="justify-content:center;gap:22px"><button class="ctrl-small" onclick="openAnaMenu(event,'+a.id+')">'+ico('dots',20)+'</button><button class="ctrl-main" id="mainPlayBtn" onclick="togglePlayAnashid()">'+ico('play',30)+'</button><span style="width:44px;display:block"></span></div></div>';goPage('anashiddetail',null);playingAnashidId=id;globalAudio.src=TG?tgProxyUrl(a.url):a.url;globalAudio.playbackRate=currentSpeed;globalAudio.play().catch(function(){});}function togglePlayAnashid(){if(globalAudio.paused)globalAudio.play();else globalAudio.pause();}
 function seekAnashid(e){let r=e.currentTarget.getBoundingClientRect();let p=(r.right-e.clientX)/r.width;if(globalAudio.duration)globalAudio.currentTime=p*globalAudio.duration;}
 function seekCard(e){e.stopPropagation();let r=e.currentTarget.getBoundingClientRect();let p=(r.right-e.clientX)/r.width;if(globalAudio.duration)globalAudio.currentTime=p*globalAudio.duration;}
 function toggleAnashidCard(e,id){e.stopPropagation();let a=anashid.find(function(x){return x.id===id});if(!a)return;if(/t\.me\//i.test(a.url||'')||/youtube\.com\/embed\//i.test(a.url||'')){openAnashidDetail(id,'anashid');return;}if(playingAnashidId===id){if(globalAudio.paused)globalAudio.play();else globalAudio.pause();}else{playingAnashidId=id;currentAnashidId=id;globalAudio.src=a.url;globalAudio.playbackRate=currentSpeed;globalAudio.play();}refreshAnashidUI();}
@@ -696,7 +723,7 @@ function setEditChType(t){editChType=t;}
 function saveEditChannel(){let c=channelsData.find(function(x){return x.id===editChId});if(c){c.name=document.getElementById('editChName').value;c.desc=document.getElementById('editChDesc').value;c.link=document.getElementById('editChLink').value;c.type=editChType;localStorage.setItem('qaqa_channels',JSON.stringify(channelsData));}closeEditChannel();renderChannels();}
 function closeEditChannel(){document.getElementById('editChannelModal').classList.add('hidden');}
 function deleteChannel(id){if(confirm("حذف القناة؟")){channelsData=channelsData.filter(function(x){return x.id!==id});localStorage.setItem('qaqa_channels',JSON.stringify(channelsData));renderChannels();}}
-function renderUniversalProfile(username){let targetUsername=username||currentProfileUser;let user;if(!targetUsername){let me=getActiveAccount();if(me)user=me;else user={username:"ضيف",id:"GUEST-000",pic:"",bio:"انت داخل كضيف",followers:0};}else user=getAnyUser(targetUsername);currentProfileUser=user.username;let isMe=isMyProfile(user.username);syncFollowed();let isFollowing=followedUsers.has(user.username);let pic=getPic(user.username);let bio=getBio(user.username);if(isDev&&window.qaDevProfile)bio=qaDevProfile().bio||bio;let isPriv=isPrivate(user.username);let canSee=!isPriv||isMe||isFollowing;let followersCount=getFollowers(user.username).length;let container=document.getElementById('profileContainer');if(!container)return;if(isGuest&&isMe){container.innerHTML='<div style="text-align:center;padding:25px;background:var(--card);border-radius:18px"><h2 style="color:#fff">انت داخل كضيف</h2><button class="gate-btn primary" onclick="backToAuth()">انشاء حساب</button></div>';return;}let fullName=user.fullName||((user.firstName||"")+" "+(user.lastName||"")).trim()||user.username;let buttons="";if(isMe){buttons='<button class="follow-btn" onclick="openEditProfile()">تعديل الملف الشخصي</button> <button class="msg-btn" onclick="shareProfile(\''+user.username+'\')">مشاركة الملف الشخصي</button>';}else{buttons='<button class="follow-btn '+(isFollowing?'following':'')+'" onclick="toggleFollowUniversal(\''+user.username+'\')">'+(isFollowing?'تمت المتابعة':'متابعة')+'</button> ';}if(isDev)buttons+='<button class="msg-btn qa-dev-btn" onclick="window.open(\'https://t.me/'+(window.qaDevProfile?qaDevProfile().username:'Al_Qaqa_1448')+'\',\'_blank\')">تواصل عبر تيليجرام</button> ';let favContent="";if(!canSee){favContent='<div class="bio-box">'+ico('lock',16)+' حساب خاص</div>';}else{if(currentFavTab==="videos"){let favV=videos.filter(function(v){return favorites.videos.has(v.id)});favContent=favV.map(function(v){return '<div class="video-card" onclick="openVideoDetail('+v.id+',\'profile\')"><div class="video-thumb">'+vthumb(v)+'</div><div class="video-info"><div class="video-title">'+v.title+'</div><div class="watermark">القعقاع | Al-Qaqa</div></div></div>'}).join("");}if(currentFavTab==="anashid"){let favA=anashid.filter(function(a){return favorites.anashid.has(a.id)});favContent=favA.map(function(a){return '<div class="anashid-card" onclick="openAnashidDetail('+a.id+',\'profile\')"><div class="anashid-top"><div class="anashid-mid"><div class="anashid-title">'+a.title+'</div><div class="watermark">القعقاع | Al-Qaqa</div></div></div></div>'}).join("");}if(currentFavTab==="images"){let favI=imagesData.filter(function(im){return favorites.images.has(im.id)});favContent=favI.length?'<div class="sowar-grid">'+favI.map(function(im){return '<div class="sowar-item"><img src="'+im.url+'"><div><b>'+im.title+'</b><span class="watermark" style="display:block">القعقاع | Al-Qaqa</span></div></div>'}).join("")+'</div>':'';}if(currentFavTab==="channels"){let favC=channelsData.filter(function(c){return favorites.channels.has(c.id)});favContent=favC.map(function(ch){return '<div class="channel-card row" onclick="openChannelDetail('+ch.id+')"><div class="channel-ava">'+(ch.img?'<img src="'+ch.img+'">':ico('megaphone'))+'</div><div style="flex:1"><b>'+ch.name+'</b></div></div>'}).join("");}}let isDev=(window.qaIsDev&&qaIsDev(user.username));if(isDev){var __dp=qaDevProfile();user=Object.assign({},user,{fullName:__dp.name,lastName:(user.lastName&&user.lastName!==user.username)?user.lastName:__dp.name,bio:__dp.bio,id:qaEncId(user.username),verified:true,vlevel:3,dev:true});}let nick=user.lastName||user.username;let pbadge='<span class="type-badge pv">'+(isPriv?ico('lock',12)+' حساب خاص':ico('globe',12)+' حساب عام')+'</span>';let stat=function(n,l){return '<div class="count-box"><b>'+n+'</b><small>'+l+'</small></div>'};let tabs=[['videos','اصدارات'],['anashid','اناشيد'],['images','صور'],['channels','قنوات']].map(function(t){return '<div class="fav-tab '+(currentFavTab===t[0]?'active':'')+'" onclick="setFavTab(\''+t[0]+'\',\''+user.username+'\')">'+t[1]+'</div>'}).join('');container.innerHTML='<div class="profile-top"><button class="back-btn" onclick="goBack()" style="position:absolute;top:10px;right:10px;margin:0">'+ico('chevR',14)+' رجوع</button><div class="profile-dots" onclick="toggleProfileMenu(event)">'+ico('dots',18)+'</div>'+(profileMenuOpen?'<div class="profile-menu">'+(isMe?'<div onclick="openPrivacyPage()">الاعدادات والخصوصية</div><div onclick="openActivityPage()">النشاط</div><div onclick="deleteAccount()">حذف الحساب</div>':'<div onclick="openReport(\''+user.username+'\')">الإبلاغ عن هذا الشخص</div>')+'</div>':'')+'<div class="av-wrap"><div class="avatar-big'+(isDev?' qa-dev-av-box':'')+'">'+(pic?'<img src="'+pic+'">':ico('user'))+'</div>'+(isOnline(user.username)?'<span class="online-dot"></span>':'')+'</div><h2 class="p-nick">'+nick+' '+(isDev?qaDevCrown(18):(window.qaVBadge?qaVBadge(user.username):''))+'</h2><div class="p-pills"><span class="id-pill"><span dir="ltr">ID: '+user.id+'</span><span class="copy-btn" onclick="copyText(\''+user.id+'\')">'+ico('copy')+'</span></span><span class="id-pill">اسم المستخدم: <span dir="ltr">@'+user.username+'</span><span class="copy-btn" onclick="copyText(\''+user.username+'\')">'+ico('copy')+'</span></span></div>'+pbadge+'<div class="bio-box">'+bio+'</div><div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">'+buttons+'</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px">'+stat2(followersCount,'المتابعين','followers',user.username)+stat2(getFollowing(user.username).length,'المتابعات','following',user.username)+stat2(getInteractions(user.username),'التفاعلات')+stat2((window.qaDlCount?qaDlCount(user.username):0),'تحميلات')+'</div><div style="text-align:right;margin-top:16px;font-weight:800;color:#fff;font-size:14px">المفضلة</div><div class="fav-tabs">'+tabs+'</div><div style="margin-top:12px">'+(favContent||'<p style="text-align:center;color:var(--muted)">لايوجد شيء في المفضلة</p>')+'</div><div style="text-align:right;margin-top:18px;font-weight:800;color:#fff;font-size:14px">منشوراته</div><div id="qaProfilePosts" style="margin-top:4px"></div></div>';try{if(canSee)renderProfilePosts(user.username);}catch(e){}}
+function renderUniversalProfile(username){let targetUsername=username||currentProfileUser;let user;if(!targetUsername){let me=getActiveAccount();if(me)user=me;else user={username:"ضيف",id:"GUEST-000",pic:"",bio:"انت داخل كضيف",followers:0};}else user=getAnyUser(targetUsername);currentProfileUser=user.username;let isMe=isMyProfile(user.username);let isDev=!!(window.qaIsDev&&qaIsDev(user.username));syncFollowed();let isFollowing=followedUsers.has(user.username);let pic=getPic(user.username);let bio=getBio(user.username);if(isDev&&window.qaDevProfile)bio=qaDevProfile().bio||bio;let isPriv=isPrivate(user.username);let canSee=!isPriv||isMe||isFollowing;let followersCount=getFollowers(user.username).length;let container=document.getElementById('profileContainer');if(!container)return;if(isGuest&&isMe){container.innerHTML='<div style="text-align:center;padding:25px;background:var(--card);border-radius:18px"><h2 style="color:#fff">انت داخل كضيف</h2><button class="gate-btn primary" onclick="backToAuth()">انشاء حساب</button></div>';return;}let fullName=user.fullName||((user.firstName||"")+" "+(user.lastName||"")).trim()||user.username;let buttons="";if(isMe){buttons='<button class="follow-btn" onclick="openEditProfile()">تعديل الملف الشخصي</button> <button class="msg-btn" onclick="shareProfile(\''+user.username+'\')">مشاركة الملف الشخصي</button>';}else{buttons='<button class="follow-btn '+(isFollowing?'following':'')+'" onclick="toggleFollowUniversal(\''+user.username+'\')">'+(isFollowing?'تمت المتابعة':'متابعة')+'</button> ';}if(isDev)buttons+='<button class="msg-btn qa-dev-btn" onclick="window.open(\'https://t.me/'+(window.qaDevProfile?qaDevProfile().username:'Al_Qaqa_1448')+'\',\'_blank\')">تواصل عبر تيليجرام</button> ';let favContent="";if(!canSee){favContent='<div class="bio-box">'+ico('lock',16)+' حساب خاص</div>';}else{if(currentFavTab==="videos"){let favV=videos.filter(function(v){return favorites.videos.has(v.id)});favContent=favV.map(function(v){return '<div class="video-card" onclick="openVideoDetail('+v.id+',\'profile\')"><div class="video-thumb">'+vthumb(v)+'</div><div class="video-info"><div class="video-title">'+v.title+'</div><div class="watermark">القعقاع | Al-Qaqa</div></div></div>'}).join("");}if(currentFavTab==="anashid"){let favA=anashid.filter(function(a){return favorites.anashid.has(a.id)});favContent=favA.map(function(a){return '<div class="anashid-card" onclick="openAnashidDetail('+a.id+',\'profile\')"><div class="anashid-top"><div class="anashid-mid"><div class="anashid-title">'+a.title+'</div><div class="watermark">القعقاع | Al-Qaqa</div></div></div></div>'}).join("");}if(currentFavTab==="images"){let favI=imagesData.filter(function(im){return favorites.images.has(im.id)});favContent=favI.length?'<div class="sowar-grid">'+favI.map(function(im){return '<div class="sowar-item"><img src="'+im.url+'"><div><b>'+im.title+'</b><span class="watermark" style="display:block">القعقاع | Al-Qaqa</span></div></div>'}).join("")+'</div>':'';}if(currentFavTab==="channels"){let favC=channelsData.filter(function(c){return favorites.channels.has(c.id)});favContent=favC.map(function(ch){return '<div class="channel-card row" onclick="openChannelDetail('+ch.id+')"><div class="channel-ava">'+(ch.img?'<img src="'+ch.img+'">':ico('megaphone'))+'</div><div style="flex:1"><b>'+ch.name+'</b></div></div>'}).join("");}}if(isDev){var __dp=qaDevProfile();user=Object.assign({},user,{fullName:__dp.name,lastName:(user.lastName&&user.lastName!==user.username)?user.lastName:__dp.name,bio:__dp.bio,id:qaEncId(user.username),verified:true,vlevel:3,dev:true});}let nick=user.lastName||user.username;let pbadge='<span class="type-badge pv">'+(isPriv?ico('lock',12)+' حساب خاص':ico('globe',12)+' حساب عام')+'</span>';let stat=function(n,l){return '<div class="count-box"><b>'+n+'</b><small>'+l+'</small></div>'};let tabs=[['videos','اصدارات'],['anashid','اناشيد'],['images','صور'],['channels','قنوات']].map(function(t){return '<div class="fav-tab '+(currentFavTab===t[0]?'active':'')+'" onclick="setFavTab(\''+t[0]+'\',\''+user.username+'\')">'+t[1]+'</div>'}).join('');container.innerHTML='<div class="profile-top"><button class="back-btn" onclick="goBack()" style="position:absolute;top:10px;right:10px;margin:0">'+ico('chevR',14)+' رجوع</button><div class="profile-dots" onclick="toggleProfileMenu(event)">'+ico('dots',18)+'</div>'+(profileMenuOpen?'<div class="profile-menu">'+(isMe?'<div onclick="openPrivacyPage()">الاعدادات والخصوصية</div><div onclick="openActivityPage()">النشاط</div><div onclick="deleteAccount()">حذف الحساب</div>':'<div onclick="openReport(\''+user.username+'\')">الإبلاغ عن هذا الشخص</div>')+'</div>':'')+'<div class="av-wrap"><div class="avatar-big'+(isDev?' qa-dev-av-box':'')+'">'+(pic?'<img src="'+pic+'">':ico('user'))+'</div>'+(isOnline(user.username)?'<span class="online-dot"></span>':'')+'</div><h2 class="p-nick">'+nick+' '+(isDev?qaDevCrown(18):(window.qaVBadge?qaVBadge(user.username):''))+'</h2><div class="p-pills"><span class="id-pill"><span dir="ltr">ID: '+user.id+'</span><span class="copy-btn" onclick="copyText(\''+user.id+'\')">'+ico('copy')+'</span></span><span class="id-pill">اسم المستخدم: <span dir="ltr">@'+user.username+'</span><span class="copy-btn" onclick="copyText(\''+user.username+'\')">'+ico('copy')+'</span></span></div>'+pbadge+'<div class="bio-box">'+bio+'</div><div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">'+buttons+'</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px">'+stat2(followersCount,'المتابعين','followers',user.username)+stat2(getFollowing(user.username).length,'المتابعات','following',user.username)+stat2(getInteractions(user.username),'التفاعلات')+stat2((window.qaDlCount?qaDlCount(user.username):0),'تحميلات')+'</div><div style="text-align:right;margin-top:16px;font-weight:800;color:#fff;font-size:14px">المفضلة</div><div class="fav-tabs">'+tabs+'</div><div style="margin-top:12px">'+(favContent||'<p style="text-align:center;color:var(--muted)">لايوجد شيء في المفضلة</p>')+'</div><div style="text-align:right;margin-top:18px;font-weight:800;color:#fff;font-size:14px">منشوراته</div><div id="qaProfilePosts" style="margin-top:4px"></div></div>';try{if(canSee)renderProfilePosts(user.username);}catch(e){}}
 function setFavTab(t,u){currentFavTab=t;renderUniversalProfile(u);}
 function toggleProfileMenu(e){if(e)e.stopPropagation();profileMenuOpen=!profileMenuOpen;renderUniversalProfile(currentProfileUser);}
 function toggleFollowUniversal(username){if(guestBlock())return;if(followedUsers.has(username))followedUsers.delete(username);else followedUsers.add(username);renderUniversalProfile(username);}
@@ -830,12 +857,10 @@ function playByIndex(n){let a=anashid[n];if(!a)return;if(currentPage==='anashidd
 function openAnashidDetail(id,origin){let a=anashid.find(function(x){return x.id===id});if(!a)return;currentAnashidId=id;let others=anashid.filter(function(x){return x.id!==id}).sort(function(){return Math.random()-.5}).slice(0,2);
  let sug=others.length?'<div class="sug-title">اقتراحات لك</div>'+others.map(function(o){return '<div class="anashid-card" onclick="openAnashidDetail('+o.id+',\'anashid\')"><div class="anashid-top">'+(o.img?'<img class="anashid-img" src="'+o.img+'">':'<div class="anashid-img-div">'+ico('music',26)+'</div>')+'<div class="anashid-mid"><div class="anashid-title">'+escH(o.title)+'</div><small style="color:var(--muted)">'+o.date+'</small></div><button class="play-btn">'+ico('play',20)+'</button></div></div>'}).join(''):'';
  let box=document.getElementById('anashidDetailBox');let TG=/t\.me\//i.test(a.url||''),YT=/youtube\.com\/embed\//i.test(a.url||''),EM=TG||YT;
- box.innerHTML='<div style="padding:14px"><div class="anashid-hero">'+(EM?'<iframe src="'+(TG?a.url.split('?')[0]+'?embed=1&mode=tme':a.url)+'" style="width:100%;height:100%;border:0;min-height:50vh" allow="autoplay;encrypted-media;fullscreen" allowfullscreen></iframe>':(a.img?'<img src="'+a.img+'">':'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted)">'+ico('music',64)+'</div>'))+'</div><h2 style="color:#fff;text-align:center;margin-top:12px">'+escH(a.title)+'</h2><div class="watermark" style="text-align:center">القعقاع | Al-Qaqa</div><p style="text-align:center;color:var(--muted);margin-top:4px"><span style="display:inline-flex;align-items:center;gap:5px">'+a.date+' • '+a.likes+' '+ico('like',14)+'</span></p>'
- +'<canvas id="waveCanvas" class="wave" width="640" height="156"></canvas><div class="progress-bar" style="margin-top:10px" onclick="seekAnashid(event)"><div class="progress-fill" id="anashidProg"></div></div><div class="time-row"><span id="curTime">0:00</span><span id="totTime">'+(a.duration||'')+'</span></div>'
+box.innerHTML='<div style="padding:14px"><div class="anashid-hero">'+(YT?'<iframe src="'+a.url+'" style="width:100%;height:100%;border:0;min-height:50vh" allow="autoplay;encrypted-media;fullscreen" allowfullscreen></iframe>':(a.img?'<img src="'+a.img+'">':'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted)">'+ico('music',64)+'</div>'))+'</div><h2 style="color:#fff;text-align:center;margin-top:12px">'+escH(a.title)+'</h2><div class="watermark" style="text-align:center">القعقاع | Al-Qaqa</div><p style="text-align:center;color:var(--muted);margin-top:4px"><span style="display:inline-flex;align-items:center;gap:5px">'+a.date+' • '+(a.likes||0)+' '+ico('like',14)+'</span></p>'+'<canvas id="waveCanvas" class="wave" width="640" height="156"></canvas><div class="progress-bar" style="margin-top:10px" onclick="seekAnashid(event)"><div class="progress-fill" id="anashidProg"></div></div><div class="time-row"><span id="curTime">0:00</span><span id="totTime">'+(a.duration||'')+'</span></div>'
  +'<div class="controls-row" style="justify-content:space-between;gap:6px"><button class="ctrl-small mode-btn" id="modeBtn" style="width:70px;border-radius:14px" onclick="cycleMode()">'+svgI(MODES[anaMode][1])+'<span>'+MODES[anaMode][0]+'</span></button><button class="ctrl-small" onclick="stepAnashid(-1)">'+svgI('<path d="m5 4 10 8-10 8z"/><path d="M19 5v14"/>',22)+'</button><button class="ctrl-main" id="mainPlayBtn" onclick="togglePlayAnashid()">'+ico('play',30)+'</button><button class="ctrl-small" onclick="stepAnashid(1)">'+svgI('<path d="m19 20-10-8 10-8z"/><path d="M5 5v14"/>',22)+'</button><button class="ctrl-small" onclick="openAnaMenu(event,'+a.id+')">'+ico('dots',20)+'</button></div>'+sug+'</div>';
- goPage('anashiddetail',null);playingAnashidId=EM?null:id;if(EM){globalAudio.pause();return}globalAudio.src=a.url;globalAudio.playbackRate=currentSpeed;globalAudio.play().catch(function(){});setHeroState()}
-function setHeroState(){let p=!globalAudio.paused;let h=document.querySelector('.anashid-hero');if(h)h.classList.toggle('playing',p);let m=document.getElementById('mainPlayBtn');if(m)m.classList.toggle('on',p);document.querySelectorAll('.play-btn[data-id]').forEach(function(b){b.classList.toggle('pl',playingAnashidId===parseInt(b.dataset.id)&&p)})}
-['play','pause','ended'].forEach(function(e){globalAudio.addEventListener(e,setHeroState)});
+ goPage('anashiddetail',null);playingAnashidId=id;if(TG){try{globalAudio.pause();globalAudio.removeAttribute('src')}catch(e){}setHeroState();return}if(EM){globalAudio.pause();return}globalAudio.src=a.url;globalAudio.playbackRate=currentSpeed;globalAudio.play().catch(function(){});setHeroState()}function setHeroState(){let p=!globalAudio.paused;let h=document.querySelector('.anashid-hero');if(h)h.classList.toggle('playing',p);let m=document.getElementById('mainPlayBtn');if(m)m.classList.toggle('on',p);document.querySelectorAll('.play-btn[data-id]').forEach(function(b){b.classList.toggle('pl',playingAnashidId===parseInt(b.dataset.id)&&p)})}
+['play','pause','ended'].forEach(function(e){globalAudio.addEventListener(e,setHeroState)});globalAudio.addEventListener('error',function(){toast('تعذر تشغيل الأنشودة حالياً — جرّب مرة ثانية بعد قليل')});
 globalAudio.addEventListener('loadedmetadata',function(){let t=document.getElementById('totTime');if(t&&isFinite(globalAudio.duration)){let m=Math.floor(globalAudio.duration/60),s=Math.floor(globalAudio.duration%60);t.textContent=m+':'+(s<10?'0'+s:s)}});
 globalAudio.addEventListener('ended',function(){if(!anashid.length)return;if(anaMode==='repeat'){globalAudio.currentTime=0;globalAudio.play();return}stepAnashid(1)});
 /* موجات الصوت */
@@ -1026,11 +1051,11 @@ window.openSupport=function(){const me=getActiveAccount();if(!me||isGuest){showM
  s.innerHTML=`<div class="sh"><button class="sb" onclick="closeSupport()">${svg('<path d="m9 18 6-6-6-6"/>')}</button><div class="av">ق</div><div><b>دعم القعقاع</b><small>نرد عليك بأقرب وقت</small></div></div><div class="ms" id="supMs"></div><div class="ib"><textarea id="supIn" rows="1" placeholder="اكتب رسالة"></textarea><button class="sn" onclick="supSend()">${svg('<path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/>')}</button></div>`;
  s.classList.remove('on');void s.offsetWidth;s.classList.add('on');draw();
  const t=$('supIn');t.oninput=()=>{t.style.height='auto';t.style.height=Math.min(t.scrollHeight,110)+'px'};t.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();supSend()}};
- poll();clearInterval(window._sp);window._sp=setInterval(poll,8000)};
+ poll();clearInterval(window._sp);window._sp=setInterval(poll,3000)};
 window.closeSupport=function(){const s=$('sup');if(s)s.classList.remove('on');clearInterval(window._sp)};
 window.supSend=function(){const me=getActiveAccount(),t=$('supIn'),v=(t.value||'').trim();if(!me||!v)return;const l=load(me),m={f:'u',t:v,ts:Date.now(),ok:false};l.push(m);lsSet(key(me),l);t.value='';t.style.height='auto';draw();
- if(!SITE_API)return;fetch(SITE_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'user_message',uid:me.username,username:me.username,name:meName(me),text:v,ts:m.ts})}).then(r=>{if(!r.ok)throw 0;m.ok=true;lsSet(key(me),l);draw()}).catch(()=>{})};
-async function poll(){const me=getActiveAccount();if(!me||!SITE_API||!$('sup')?.classList.contains('on'))return;try{const r=await fetch(SITE_API+'?res=support&uid='+encodeURIComponent(me.username)),d=await r.json(),srv=Array.isArray(d)?d:d.list||[];if(srv.length){const loc=load(me),mine=loc.filter(x=>x.f==='u'),a=srv.filter(x=>x.f==='a'||x.f==='admin').map(x=>({f:'a',t:x.t||x.text,ts:x.ts}));const all=[...mine.map(x=>({...x,ok:true})),...a].sort((x,y)=>x.ts-y.ts);if(all.length!==loc.length){lsSet(key(me),all);draw()}}}catch(e){}}
+ if(window.__qaqaSupPush)window.__qaqaSupPush(me,m,()=>{m.ok=true;lsSet(key(me),l);draw()});if(!SITE_API)return;fetch(SITE_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'user_message',uid:me.username,username:me.username,name:meName(me),text:v,ts:m.ts})}).then(r=>{if(!r.ok)throw 0;m.ok=true;lsSet(key(me),l);draw()}).catch(()=>{})};
+async function poll(){const me=getActiveAccount();if(me&&window.__qaqaSupPull&&$('sup')?.classList.contains('on')){try{if(await window.__qaqaSupPull(me))draw()}catch(e){}}if(!me||!SITE_API||!$('sup')?.classList.contains('on'))return;try{const r=await fetch(SITE_API+'?res=support&uid='+encodeURIComponent(me.username)),d=await r.json(),srv=Array.isArray(d)?d:d.list||[];if(srv.length){const loc=load(me),mine=loc.filter(x=>x.f==='u'),a=srv.filter(x=>x.f==='a'||x.f==='admin').map(x=>({f:'a',t:x.t||x.text,ts:x.ts}));const all=[...mine.map(x=>({...x,ok:true})),...a].sort((x,y)=>x.ts-y.ts);if(all.length!==loc.length){lsSet(key(me),all);draw()}}}catch(e){}}
 const _gb=goBack;goBack=function(){const s=$('sup');if(s&&s.classList.contains('on')){closeSupport();return}_gb()};
 /* ---------- الإعدادات: زر التواصل + ألوان التطبيق ---------- */
 const AC=['#3b82f6','#22c55e','#f5c542','#ef4444','#a855f7','#ec4899','#14b8a6','#f97316'];
@@ -1588,7 +1613,7 @@ function saveItem(){
   if(!v('title'))return toast('اكتب الاسم أولاً');
   const lk0=v('link');if(!/^https?:[/][/]/i.test(lk0))return toast(page==='releases'?'اكتب رابط الفيديو (يبدأ بـ https://)':'اكتب رابط الأنشودة (يبدأ بـ https://)');
   let lk=lk0.replace(/^http:/,'https:');
-  const TGM=lk0.match(/(?:t\.me|telegram\.me|telegram\.dog)\/(c\/\d+|[A-Za-z0-9_]{4,})\/(\d+)/i);
+  const TGM=lk0.match(/(?:t\.me|telegram\.me|telegram\.dog)\/(?:s\/)?(c\/\d+|[A-Za-z0-9_]{4,})\/(\d+)/i);
   if(/(?:t\.me|telegram\.(me|dog))\//i.test(lk0)){
    if(!TGM)return toast('رابط التلجرام لازم يكون لمنشور محدد: افتح المنشور بالقناة ← نسخ الرابط (يصير مثل t.me/اسم_القناة/123). رابط القناة لحالها ما يكفي');
    lk='https://t.me/'+TGM[1]+'/'+TGM[2];
@@ -1606,7 +1631,7 @@ function saveItem(){
    if(!/^https?:[/][/]/i.test(l0))return toast('الرابط لازم يبدأ بـ https://');
    let l=l0.replace(/^http:/,'https:');
    if(/(?:t\.me|telegram\.(me|dog))\//i.test(l0)){
-    const M=l0.match(/(?:t\.me|telegram\.me|telegram\.dog)\/(c\/\d+|[A-Za-z0-9_]{4,})\/(\d+)/i);
+    const M=l0.match(/(?:t\.me|telegram\.me|telegram\.dog)\/(?:s\/)?(c\/\d+|[A-Za-z0-9_]{4,})\/(\d+)/i);
     if(!M)return toast('رابط التلجرام لازم يكون لمنشور محدد (يصير مثل t.me/اسم_القناة/123)');
     l='https://t.me/'+M[1]+'/'+M[2];
    }
@@ -2093,10 +2118,7 @@ if(typeof SITE_API!=='undefined'&&SITE_API)setInterval(()=>loadExtra(),60000);
 })();
 <\/script>
 <script>setTimeout(()=>{try{loadUsers();loadExtra();setTimeout(render,300)}catch(e){}},500);
-setInterval(()=>{try{const a=JSON.stringify([db.users,db.msgs,db.comments,db.followers]);parent.__loadSiteUsers(db);parent.__loadSiteExtra(db);setTimeout(()=>{const b=JSON.stringify([db.users,db.msgs,db.comments,db.followers]);if(a!==b&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)&&!document.querySelector('.menu.open'))render()},400)}catch(e){}},15000);document.addEventListener('click',e=>{const c=e.target.closest('[data-copy]');if(!c)return;if(parent.__copyText)parent.__copyText(c.dataset.copy);else try{navigator.clipboard.writeText(c.dataset.copy)}catch(_){}toast('تم النسخ')});<\/script><style>.card:has(.menu.open){position:relative;z-index:30}.uav{overflow:hidden}</style><script>document.addEventListener('click',e=>{if(!e.target.closest('.dbtn'))return;setTimeout(()=>{document.querySelectorAll('.menu').forEach(m=>{m.style.top='';m.style.bottom=''});const m=document.querySelector('.menu.open');if(!m)return;const r=m.getBoundingClientRect();if(r.bottom>innerHeight-76){m.style.top='auto';m.style.bottom='44px'}},30)});<\/script></body>
-</html>
-</script><script>
-/* ===== دمج لوحة التحكم مع الموقع ===== */
+<script>var i="https://cdn.phototourl.com/member/2026-11-10-87067d92-4795-4122-81c4-3d1c78d96e1c.png";var m={name:"القعقاع",short_name:"القعقاع",start_url:"/",display:"standalone",icons:[{src:i,sizes:"512x512",type:"image/png"}]};document.getElementById('pwa-manifest').href="data:application/manifest+json,"+encodeURIComponent(JSON.stringify(m));...</script><script>/* ===== دمج لوحة التحكم مع الموقع ===== */
 (function(){
 const $=id=>document.getElementById(id);
 const DEMO=[1,2,101,102,201,202,301,302];
@@ -2207,7 +2229,7 @@ const _ocs=openChatSettings;openChatSettings=function(){_ocs();let u=currentChat
 (function(){
 /* كود خاص للمطوّر: بيفتح الدخول والتسجيل دايماً. احذف هالسطر (خليه '') لتعطيله */
 var MASTER='AHMAD20070';
-var TG='https://t.me/A_137_MD';
+var TG='https://t.me/Al_Qaqa_1448';
 
 function $(i){return document.getElementById(i)}
 function fs(){return TDB.firestore()}
@@ -2688,7 +2710,7 @@ body.light .q-toast{background:#101b31;color:#fff}
 
 var $ = function(id){ return document.getElementById(id); };
 var MASTER = 'AHMAD20070';
-var TG_LINK = 'https://t.me/A_137_MD';
+var TG_LINK = 'https://t.me/Al_Qaqa_1448';
 var GOVS = ['دمشق','ريف دمشق','حلب','حمص','حماة','اللاذقية','طرطوس','إدلب','دير الزور','الرقة','الحسكة','السويداء','درعا','القنيطرة'];
 var RESERVED = ['admin','administrator','root','qaqa','alqaqa','support','moderator','system','القعقاع','ادارة','الإدارة'];
 var U_KEY = 'qaqa_users_full';
@@ -4823,8 +4845,10 @@ function applyContent(docs){
   var V = [], A = [], I = [], C = [], map = {}, seen = {};
   docs.forEach(function(d){
     var id = Number(d.n) || Date.now(), k = d.sec + '_' + d.id, old = prevCloud[k] || {}, it;
-    var dk = d.sec + '|' + String(d.title || d.desc || '') + '|' + String(d.link || d.fileId || d.thumbId || '');
-    if (seen[dk]) return; seen[dk] = 1;
+var dks = (window.__qaqaDupKeys && window.__qaqaDupKeys(d)) || [d.sec + '|' + String(d.title || d.desc || '') + '|' + String(d.link || d.fileId || d.thumbId || '')];
+var isDup = dks.some(function(k){ return seen[k]; });
+if (isDup) return;
+dks.forEach(function(k){ seen[k] = 1; });    if (seen[dk]) return; seen[dk] = 1;
     if (d.sec === 'channels' && d.status === 'pending') return;
     if (d.sec === 'releases') {
       it = { id: id, pinned: !!d.pinned, url: d.link || old.url || '', title: d.title, desc: d.desc, date: dstr(id), views: old.views || 0, likes: old.likes || 0, thumb: old.thumb || '', comments: old.comments || [], cloud: true };
@@ -4839,6 +4863,7 @@ function applyContent(docs){
       it = { id: id, pinned: !!d.pinned, name: d.title, desc: d.desc, img: old.img || '', type: d.type || 'telegram', link: d.link, cloud: true };
       setMedia(it, 'img', d.thumbId); C.push(it);
     } else return;
+    if (d.tgkey && it && !it.tgUrl) it.tgUrl = 'https://t.me/' + String(d.tgkey).replace(/^\/+/, '');
     map[k] = it;
   });
   prevCloud = map;
@@ -5130,7 +5155,7 @@ window.__cloudStateStart = function(){
 })();
 
 /* ================================ تشغيل ================================= */
-var RESET_ID = 'reset-2026-11-08-a';
+var RESET_ID = 'reset-2026-11-09-launch';
 async function doReset(){
   try {
     var st = await fs().collection('site').doc('state').get();
@@ -5292,7 +5317,7 @@ function qaPostCard(p, myU){
       : '<div class="qa-ptext" onpointerdown="qaLpStart(event,\'' + p.id + '\')" onpointerup="qaLpEnd()" onpointerleave="qaLpEnd()" onpointercancel="qaLpEnd()" oncontextmenu="event.preventDefault();return false">' + txtHtml + '</div>')
     + ''
     + '<div class="qa-actions">'
-    + '<button class="' + (onAny ? 'qa-re on' : 'qa-re') + '" onclick="qaReact(\'' + p.id + '\',\'like\')">' + qaReIcon('like', 16) + ' <span>' + rtot + '</span></button>'
+    + '<button class="' + (onAny ? 'qa-re on' : 'qa-re') + '" onclick="qaReact(\'' + p.id + '\',\'like\')">' + qaReIcon('like', 16) + ' <span>تفاعل' + (rtot ? ' · ' + rtot : '') + '</span></button>'
     + '<button class="qa-re" onclick="qaToggleComments(\'' + p.id + '\')">' + '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> <span>' + coms.length + '</span></button>'
     + '</div>'
     + '<div id="cm-' + p.id + '" class="' + (qaOpenCm[p.id] ? '' : 'hidden') + '">'
@@ -5321,7 +5346,7 @@ function qaReIcon(kind, s){
   };
   return '<svg viewBox="0 0 24 24" style="width:' + (s || 16) + 'px;height:' + (s || 16) + 'px;vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + (paths[kind] || paths.like) + '</svg>';
 }
-function qaLpStart(ev, id){
+function qaLpStart(ev, id){ return; /* single reaction button only */
   if (ev && ev.button !== undefined && ev.button !== 0) return;
   qaLpFired = false;
   clearTimeout(qaLpTimer);
@@ -5598,10 +5623,18 @@ function safe(u){u=String(u||'').trim();return /^https:\/\//i.test(u)?u:''}
 function plain(h){return new DOMParser().parseFromString(String(h||''),'text/html').body.textContent.replace(/[<>"]/g,'').replace(/\s+/g,' ').trim()}
 function fd(ts){var d=new Date(ts),p=function(x){return(x<10?'0':'')+x};return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())}
 async function getHTML(u){
-  for(var i=0;i<PX.length;i++){
-    try{var r=await fetch(PX[i](u),{signal:sig(12000)});if(!r.ok)continue;var t=await r.text();if(t&&t.indexOf('tgme_')>-1)return t}catch(e){}
-  }
-  return '';
+  /* نجرب كل البروكسيات بنفس الوقت ونأخذ أول رد سليم (الـ Worker آخر خيار) */
+  var list=PX.slice();
+  if(TG_PROXY&&list.length>1){var w=list.shift();list.push(w)}
+  return new Promise(function(res){
+    var left=list.length,done=false;
+    function fin(v){if(done)return;if(v){done=true;res(v)}else if(--left<=0){done=true;res('')}}
+    list.forEach(function(p){
+      (async function(){
+        try{var r=await fetch(p(u),{signal:sig(9000)});if(!r.ok)return fin('');var t=await r.text();fin(t&&t.indexOf('tgme_')>-1?t:'')}catch(e){fin('')}
+      })();
+    });
+  });
 }
 function bg(el){if(!el)return '';var m=(el.getAttribute('style')||'').match(/url\(['"]?([^'")]+)/);return m?m[1]:''}
 function parseMsg(m,post){
@@ -5624,14 +5657,14 @@ var RC={};
 async function resolveTG(u,direct){
   var m=String(u).match(/(?:t\.me|telegram\.me)\/(?:s\/)?([A-Za-z0-9_]{4,})\/(\d+)/);if(!m)return null;
   var k=m[1]+'/'+m[2];if(RC[k])return RC[k];
-  var W=TG_PROXY+encodeURIComponent('https://t.me/'+k),fb={video:W,audio:W,photo:W,thumb:W+'&thumb=1'};
-  if(direct)return(RC[k]=fb);
-  var html=await getHTML('https://t.me/'+k+'?embed=1&mode=tme');if(!html)return(RC[k]=fb);
+  var W=TG_PROXY+encodeURIComponent('https://t.me/'+k),fb={video:W,audio:W,photo:W,thumb:W+'&thumb=1',fb:1};
+    var html=await getHTML('https://t.me/'+k+'?embed=1&mode=tme');if(!html)return fb;
   var doc=new DOMParser().parseFromString(html,'text/html');
   var el=doc.querySelector('.tgme_widget_message')||doc.body,o=parseMsg(el,k);
-  if(!o||!(o.video||o.audio||o.photo))return(RC[k]=fb);
+  if(!o||!(o.video||o.audio||o.photo))return fb;
   return(RC[k]={video:o.video||W,audio:o.audio||o.video||W,photo:o.photo||W,thumb:o.thumb||o.photo||fb.thumb,fromVideo:!o.audio&&!!o.video});
 }
+window.__resolveTG=resolveTG;
 /* استيراد منشورات القناة (آخر ~60 منشور) */
 async function loadChannel(kind){
   var out=[],before=0;
@@ -5706,7 +5739,7 @@ window.videoLoadFail=function(){
 /* لو فشل تشغيل ملف صوت مباشر نرجع لمشغل تلجرام المدمج */
 try{document.getElementById('globalAudio').addEventListener('error',function(){
   var a=anashid.find(function(x){return x.id===currentAnashidId});
-  if(a)anaFail(a)
+  if(a&&!window.__tgDirectAudio)anaFail(a)
 })}catch(e){}
 /* ===== التحميل المباشر (فيديو/نشيد/صورة) ===== */
 function fname(n,b){
@@ -5751,7 +5784,6 @@ st.textContent='.detail-player{position:relative}.detail-player iframe[src*="t.m
 document.head.appendChild(st);
 var _oa2=window.openAnashidDetail;
 window.openAnashidDetail=function(){var r=_oa2.apply(this,arguments);try{var h=document.querySelector('#anashidDetailBox .anashid-hero');if(h&&h.querySelector('iframe[src*="t.me"]'))h.classList.add('tg')}catch(e){}return r};
-wrapOpen('openVideoDetail',function(){return videos},'video');
 function anaFail(a){var b=document.getElementById('anashidDetailBox');if(!b)return;
   b.innerHTML='<div style="padding:18px;text-align:center"><div class="anashid-hero" style="display:flex;align-items:center;justify-content:center">'+(a.img?'<img src="'+a.img+'" referrerpolicy="no-referrer">':ico('music',64))+'</div><h2 style="color:#fff;margin-top:12px">'+escH(a.title)+'</h2><div class="watermark">القعقاع | Al-Qaqa</div><p style="color:var(--muted);line-height:2;margin-top:14px">تعذر تشغيل هذه الأنشودة حالياً.<br><small>جرّب مرة ثانية بعد قليل.</small></p><button class="add-btn" id="anaRetry">إعادة المحاولة</button></div>';
   document.getElementById('anaRetry').onclick=function(){a._r=0;window.openAnashidDetail(a.id)};
@@ -5760,7 +5792,6 @@ function anaFail(a){var b=document.getElementById('anashidDetailBox');if(!b)retu
   (/(t\.me|telegram\.me)\//i.test(su)?Promise.resolve('unresolved link'):fetch(su,{headers:{Range:'bytes=0-0'}}).then(function(r){return r.status<400?('file reachable '+r.status+' '+(r.headers.get('content-type')||'')):r.text().then(function(t){return r.status+' '+t.slice(0,160)})})).catch(function(e){return 'worker unreachable: '+(e&&e.message||e)}).then(function(m){dg.textContent=m});
   try{globalAudio.pause();playingAnashidId=null}catch(e){}
   goPage('anashiddetail',null)}
-wrapOpen('openAnashidDetail',function(){return anashid},'audio',anaFail);
 wrapOpen('openImageDetail',function(){return imagesData},'photo');
 /* صور منشورات تلجرام: نجيب الرابط المباشر ونعرضها بالقائمة */
 function resolveImgs(){try{imagesData.forEach(function(im){if(im&&!im._r&&/(t\.me|telegram\.me)\//i.test(im.url||'')){im._r=1;resolveTG(im.url).then(function(r){if(r&&r.photo){im.tgUrl=im.url;im.url=r.photo;['renderSowar','renderHome'].forEach(function(f){try{window[f]()}catch(e){}})}else im._r=((im._n=(im._n||0)+1)>3)?1:0}).catch(function(){im._r=((im._n=(im._n||0)+1)>3)?1:0})}})}catch(e){}}
@@ -5830,4 +5861,447 @@ if(document.readyState==='complete')setTimeout(startTG,500);else window.addEvent
   try { new MutationObserver(function(){ qLazyImgs(); }).observe(document.body, { childList: true, subtree: true }); } catch(e){}
 })();
 </script>
+<script id="qaqa-v2">
+/* ===== القعقاع v2: رسائل الدعم + إشعارات + كاش/تحديث + أزرار + منع تكرار ===== */
+(function(){
+'use strict';
+var WORKER='https://al-qaqa.al-qaqa.workers.dev',BUILD='20261112-1', ICON='...';var LS=window.localStorage;
+function jget(k,d){try{var v=JSON.parse(LS.getItem(k));return v==null?d:v}catch(e){return d}}
+function jset(k,v){try{LS.setItem(k,JSON.stringify(v))}catch(e){}}
+function pj(t){try{return JSON.parse(t)}catch(e){return {}}}
+function lc(s){return String(s==null?'':s).trim().replace(/^@/,'').toLowerCase()}
+function $(id){return document.getElementById(id)}
+function me(){try{var a=getActiveAccount();return(a&&!isGuest)?a:null}catch(e){return null}}
+function dbOK(){return !!(window.TDB&&window.__qaqaSQL)}
+function sqlx(s,a){return window.__qaqaSQL(s,a||[])}
+function guard(f){return function(){try{return f.apply(this,arguments)}catch(e){try{console.warn('qaqa-v2',e)}catch(x){}}}}
+
+/* ------------------------------ منع التكرار ------------------------------ */
+/* نفس منطق الـ Worker: file_unique_id ← قناة/رقم الرسالة ← (قسم+عنوان+رابط) */
+window.__qaqaDupKeys=function(d){
+  if(!d)return [];
+  var ks=[],norm=function(s){return String(s==null?'':s).toLowerCase().replace(/[\u200b-\u200f\u202a-\u202e]/g,'').replace(/\s+/g,' ').trim()};
+  if(d.fuid)ks.push('f|'+d.fuid);
+  var mk='';
+  if(d.tgkey)mk=String(d.tgkey).toLowerCase();
+  else{var m=String(d.link||'').match(/(?:t\.me|telegram\.me)\/(?:s\/)?(c\/\d+|[A-Za-z0-9_]{4,})\/(\d+)/i);if(m)mk=(m[1]+'/'+m[2]).toLowerCase()}
+  if(mk)ks.push('m|'+mk);
+  var t=norm(d.title),de=norm(d.desc);
+  if(t)ks.push('d|'+d.sec+'|'+t+'|'+de);
+  return ks;
+};
+
+/* ---------------------------- أصوات وإشعارات ---------------------------- */
+var NA=null,AC=null;
+function beep(){
+  try{
+    var C=window.AudioContext||window.webkitAudioContext;if(!C)return;
+    if(!AC)AC=new C();if(AC.state==='suspended')AC.resume();
+    var t=AC.currentTime;
+    [[880,0],[1175,.16],[1568,.32]].forEach(function(p){
+      var o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=p[0];
+      g.gain.setValueAtTime(.0001,t+p[1]);g.gain.exponentialRampToValueAtTime(.35,t+p[1]+.02);g.gain.exponentialRampToValueAtTime(.0001,t+p[1]+.4);
+      o.connect(g);g.connect(AC.destination);o.start(t+p[1]);o.stop(t+p[1]+.45);
+    });
+  }catch(e){}
+}
+function ding(){
+  try{
+    if(!NA){NA=new Audio('notify.wav');NA.preload='auto'}
+    NA.currentTime=0;var p=NA.play();if(p&&p.catch)p.catch(beep);
+  }catch(e){beep()}
+}
+function unlockAudio(){
+  try{
+    var C=window.AudioContext||window.webkitAudioContext;if(C&&!AC)AC=new C();if(AC&&AC.state==='suspended')AC.resume();
+    if(!NA){NA=new Audio('notify.wav');NA.preload='auto'}
+    NA.muted=true;var p=NA.play();
+    if(p&&p.then)p.then(function(){NA.pause();NA.currentTime=0;NA.muted=false}).catch(function(){NA.muted=false});else NA.muted=false;
+  }catch(e){}
+}
+function pushActive(){return !!LS.getItem('qaqa_v2_pushsig')}
+function sysNotify(title,body,tag){
+  try{
+    if(!('Notification' in window)||Notification.permission!=='granted')return;
+    if(!document.hidden&&document.hasFocus())return;   /* الموقع قدامك: التوست + الصوت يكفوا */
+    if(pushActive())return;                             /* الـ Push يعرض الإشعار بدل التكرار */
+    var o={body:body||'',tag:tag,renotify:true,icon:ICON||undefined,badge:ICON||undefined,dir:'rtl',lang:'ar',vibrate:[200,100,200],silent:false};
+    if(navigator.serviceWorker&&navigator.serviceWorker.ready)navigator.serviceWorker.ready.then(function(r){r.showNotification(title,o)}).catch(function(){try{new Notification(title,o)}catch(e){}});
+    else new Notification(title,o);
+  }catch(e){}
+}
+function notify(title,body,tag){
+  ding();
+  try{if(window.__qToast)window.__qToast(title)}catch(e){}
+  sysNotify(title,body,tag);
+}
+window.__qaqaNotify=notify;
+if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',function(e){if(e.data&&e.data.type==='ding')ding()});
+
+/* ------------------------------ Web Push ------------------------------ */
+function u8(b64){var p='='.repeat((4-b64.length%4)%4),s=atob((b64+p).replace(/-/g,'+').replace(/_/g,'/')),a=new Uint8Array(s.length);for(var i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a}
+function isAdminDev(){var a=me();return !!(a&&(a.dev===true||LS.getItem('qaqa_v2_admin')==='1'))}
+var pushBusy=false;
+function setupPush(){
+  if(pushBusy)return;
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)||Notification.permission!=='granted')return;
+  pushBusy=true;
+  navigator.serviceWorker.ready.then(function(reg){
+    return fetch(WORKER+'/push/config').then(function(r){return r.json()}).then(function(cfg){
+      if(!cfg.key)return;
+      return reg.pushManager.getSubscription().then(function(sub){
+        if(sub)return sub;
+        return reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(cfg.key)});
+      }).then(function(sub){
+        var a=me(),user=a?lc(a.username):'',role=isAdminDev()?'admin':'user',sig=sub.endpoint+'|'+user+'|'+role;
+        if(LS.getItem('qaqa_v2_pushsig')===sig)return;
+        return fetch(WORKER+'/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sub:sub.toJSON(),username:user,role:role})})
+          .then(function(r){if(r.ok)LS.setItem('qaqa_v2_pushsig',sig)});
+      });
+    });
+  }).catch(function(){}).then(function(){pushBusy=false});
+}
+/* طلب إذن الإشعارات عند أول لمسة (المتصفحات تشترط لمسة من المستخدم) */
+document.addEventListener('pointerup',function once(){
+  unlockAudio();
+  if(!('Notification' in window))return;
+  if(Notification.permission==='default'&&!LS.getItem('qaqa_v2_asked')){
+    LS.setItem('qaqa_v2_asked','1');
+    try{var p=Notification.requestPermission(function(){setupPush()});if(p&&p.then)p.then(function(){setupPush()})}catch(e){}
+  }else setupPush();
+},{passive:true});
+
+function evt(o,retry){
+  try{
+    fetch(WORKER+'/push/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),keepalive:true})
+      .then(function(r){if((r.status===404||r.status===409)&&!retry)setTimeout(function(){evt(o,1)},3000)}).catch(function(){});
+  }catch(e){}
+}
+
+/* ------------------- رسائل الدعم: الموقع ⇄ قاعدة البيانات ⇄ اللوحة ------------------- */
+function supId(u,ts,f){return lc(u).replace(/[|]/g,'')+'|'+ts+'|'+f}
+function mergeSup(key,rows){
+  var L=jget(key,[]),by={},changed=false,fresh=[];
+  L.forEach(function(x){if(x.sid)by[x.sid]=x});
+  rows.forEach(function(r){
+    var d=pj(r[1]),id=r[0],txt=d.text||d.t||'';
+    if(by[id]){if(d.f==='u'&&!by[id].ok){by[id].ok=true;changed=true}return}
+    var c=null;
+    for(var i=0;i<L.length;i++){var x=L[i];if(!x.sid&&x.f===d.f&&x.t===txt&&Math.abs((x.ts||0)-(d.ts||0))<20000){c=x;break}}
+    if(c){c.sid=id;if(d.f==='u')c.ok=true;by[id]=c;changed=true;return}
+    var it={f:d.f,t:txt,ts:d.ts,sid:id};if(d.f==='u')it.ok=true;
+    L.push(it);by[id]=it;fresh.push(it);changed=true;
+  });
+  if(changed){L.sort(function(a,b){return(a.ts||0)-(b.ts||0)});jset(key,L)}
+  return {changed:changed,fresh:fresh};
+}
+/* المستخدم يرسل: يُحفظ فوراً بقاعدة البيانات (بدل localStorage فقط) */
+window.__qaqaSupPush=function(acc,m,done){
+  if(!dbOK())return;
+  var u=acc.username,sid=supId(u,m.ts,'u'),name=((acc.firstName||'')+' '+(acc.lastName||'')).trim()||u;
+  m.sid=sid;
+  TDB.firestore().collection('support').doc(sid).set({uid:u,username:u,name:name,text:m.t,t:m.t,f:'u',ts:m.ts})
+    .then(function(){if(done)done();evt({type:'msg',sid:sid})}).catch(function(){});
+};
+var supLast={};
+/* المستخدم يستقبل ردود الإدارة */
+window.__qaqaSupPull=function(acc){
+  if(!dbOK()||!acc)return Promise.resolve(false);
+  var u=lc(acc.username),pre=u.replace(/[|]/g,'')+'|',hi=pre.slice(0,-1)+'}',key='qaqa_sup_'+acc.username;
+  return sqlx("SELECT id,data,upd FROM docs WHERE col='support' AND id>=? AND id<? AND upd>? ORDER BY upd",[pre,hi,supLast[u]||0]).then(function(r){
+    var rows=r[0].rows;if(!rows.length)return false;
+    supLast[u]=rows.reduce(function(a,x){return Math.max(a,x[2])},supLast[u]||0);
+    var res=mergeSup(key,rows);
+    res.fresh.forEach(function(it){
+      if(it.f==='a'&&Date.now()-(it.ts||0)<300000)notify('رد من فريق الدعم 💬','وصلك رد على رسالتك','reply-'+u);
+    });
+    return res.changed;
+  });
+};
+/* رسائل غير مرسلة (انقطاع نت) تُعاد تلقائياً */
+function flushUnsent(){
+  var a=me();if(!a||!dbOK())return;
+  var key='qaqa_sup_'+a.username,L=jget(key,[]);
+  L.forEach(function(m){
+    if(m.f==='u'&&!m.ok&&(!m._t||Date.now()-m._t>10000)){
+      m._t=Date.now();
+      window.__qaqaSupPush(a,m,function(){var L2=jget(key,[]);L2.forEach(function(x){if(x.sid===m.sid)x.ok=true});jset(key,L2)});
+    }
+  });
+  jset(key,L);
+}
+/* الإدارة تستقبل رسائل المستخدمين (تدريجياً: فقط الجديد منذ آخر مرة) */
+var admLast=Number(LS.getItem('qaqa_v2_adm_last')||0),admFirst=!LS.getItem('qaqa_v2_adm_last'),admBusy=false,admPending=false;
+function exactUser(uid){
+  var us=jget('qaqa_users_full',[]),k=lc(uid);
+  for(var i=0;i<us.length;i++)if(lc(us[i].username)===k)return us[i].username;
+  return uid;
+}
+function refreshPanel(){
+  try{
+    var fr=document.querySelector('#admFr iframe'),w=fr&&fr.contentWindow;
+    if(!w||typeof w.loadExtra!=='function'){admPending=false;return}
+    var rp=w.document.getElementById('rp');
+    if(rp&&w.document.activeElement===rp){admPending=true;return}   /* لا نقاطعه وهو يكتب رد */
+    admPending=false;
+    var v=rp?rp.value:'';
+    Promise.resolve(w.loadExtra()).then(function(){var n=w.document.getElementById('rp');if(n&&v&&!n.value)n.value=v});
+  }catch(e){}
+}
+function adminPull(){
+  if(!dbOK()||admBusy)return;
+  admBusy=true;
+  sqlx("SELECT id,data,upd FROM docs WHERE col='support' AND upd>? ORDER BY upd LIMIT 500",[admLast]).then(function(r){
+    var rows=r[0].rows;
+    if(!rows.length){if(admPending)refreshPanel();return}
+    admLast=rows.reduce(function(a,x){return Math.max(a,x[2])},admLast);LS.setItem('qaqa_v2_adm_last',String(admLast));
+    var g={};rows.forEach(function(x){var d=pj(x[1]);if(!d.uid)return;(g[d.uid]=g[d.uid]||[]).push(x)});
+    var any=false,fresh=[];
+    Object.keys(g).forEach(function(uid){
+      var res=mergeSup('qaqa_sup_'+exactUser(uid),g[uid]);
+      if(res.changed)any=true;
+      res.fresh.forEach(function(it){if(it.f==='u')fresh.push({uid:uid,it:it})});
+    });
+    fresh.filter(function(x){return !admFirst||Date.now()-(x.it.ts||0)<300000}).slice(-3).forEach(function(x){   /* أول تشغيل: التاريخ القديم بصمت، والجديد (آخر 5 دقائق) ينبّه */
+      var u=jget('qaqa_users_full',[]).filter(function(y){return lc(y.username)===lc(x.uid)})[0];
+      notify('رسالة جديدة 💬','من '+((u&&(u.fullName||u.username))||x.uid),'msg-'+lc(x.uid));
+    });
+    admFirst=false;
+    if(any||admPending)refreshPanel();
+  }).catch(function(){}).then(function(){admBusy=false});
+}
+/* ردّ الإدارة + توثيق: يُكتب بقاعدة البيانات ويُرسل إشعار */
+(function(){
+  var prev=window.__adminSync;
+  window.__adminSync=function(type,d){
+    var r;try{r=prev&&prev.apply(this,arguments)}catch(e){}
+    try{
+      d=d||{};
+      var us=jget('qaqa_users_full',[]),u=us.filter(function(x){return String(x.id)===String(d.id||d.to)})[0];
+      if(type==='message'&&u&&d.text&&dbOK()){
+        var key='qaqa_sup_'+u.username,L=jget(key,[]),last=null;
+        for(var i=L.length-1;i>=0;i--)if(L[i].f==='a'&&L[i].t===d.text&&!L[i].sid){last=L[i];break}
+        var ts=last?last.ts:Date.now(),sid=supId(u.username,ts,'a');
+        if(last){last.sid=sid;jset(key,L)}
+        TDB.firestore().collection('support').doc(sid).set({uid:u.username,username:u.username,name:'الدعم',text:d.text,t:d.text,f:'a',ts:ts})
+          .then(function(){evt({type:'reply',sid:sid})}).catch(function(){});
+      }
+      if(type==='user'&&u&&d.action==='verify')setTimeout(function(){evt({type:'verify',username:u.username})},1200);
+    }catch(e){}
+    return r;
+  };
+  var pv=window.__qaqaAdminSetVLevel;
+  if(typeof pv==='function')window.__qaqaAdminSetVLevel=function(username,lvl){
+    var r=pv.apply(this,arguments);
+    try{if(Number(lvl)>0)setTimeout(function(){evt({type:'verify',username:username})},1500)}catch(e){}
+    return r;
+  };
+})();
+
+/* ------------------- إشعار محتوى جديد + توثيق (داخل الموقع) ------------------- */
+function watchContent(){
+  if(window.__qaqaContentSig===undefined)return;   /* لسا ما وصل المحتوى */
+  var ids=[],meta={};
+  try{
+    videos.forEach(function(v){var k='v'+v.id;ids.push(k);meta[k]=['إصدار جديد 🎬',v.title]});
+    anashid.forEach(function(a){var k='a'+a.id;ids.push(k);meta[k]=['نشيد جديد 🎵',a.title]});
+  }catch(e){return}
+  var seen=jget('qaqa_v2_seen',null);
+  if(seen===null){jset('qaqa_v2_seen',ids);return}
+  var set={};seen.forEach(function(k){set[k]=1});
+  var nw=ids.filter(function(k){return!set[k]});
+  if(!nw.length)return;
+  jset('qaqa_v2_seen',seen.concat(nw).slice(-600));
+  nw.slice(0,3).forEach(function(k){notify(meta[k][0],meta[k][1]||'','media-'+k)});
+}
+var lastV={};
+function watchVerified(){
+  var a=me();if(!a)return;
+  var u=lc(a.username),v=!!a.verified;
+  if(lastV[u]===undefined){lastV[u]=v;return}
+  if(v&&!lastV[u])notify('تم توثيق حسابك ✅','مبروك! تم توثيق حسابك من قبل الإدارة','verify-'+u);
+  lastV[u]=v;
+}
+
+/* ------------------------------ الحلقة الرئيسية ------------------------------ */
+var tickN=0;
+var tick=guard(function(){
+  if(document.hidden)return;
+  tickN++;
+  if($('admFr'))LS.setItem('qaqa_v2_admin','1');
+  var supOpen=!!($('sup')&&$('sup').classList.contains('on'));
+  if(isAdminDev())adminPull();
+  else if(me()&&!supOpen&&tickN%4===0)window.__qaqaSupPull(me()).catch(function(){});
+  flushUnsent();watchContent();watchVerified();
+  if(tickN%20===1)setupPush();
+});
+setInterval(tick,3000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden){setTimeout(tick,200);checkVersion()}});
+window.addEventListener('online',function(){setTimeout(tick,300)});
+
+/* -------------------------- الأزرار المعلّقة (طبقة التعتيم) -------------------------- */
+(function(){
+  var st=document.createElement('style');
+  st.textContent='body.ssblur{pointer-events:auto!important}';   /* التعتيم يبقى، لكن ما يبلع اللمسات */
+  document.head.appendChild(st);
+  var since=0;
+  setInterval(function(){
+    var b=document.body;if(!b)return;
+    if(!document.hidden&&b.classList.contains('ssblur')){
+      if(!since)since=Date.now();
+      if(Date.now()-since>1500){b.classList.remove('ssblur');since=0}   /* لو علقت الطبقة بعد الرجوع للصفحة */
+    }else since=0;
+  },400);
+})();
+
+/* ---------------------- مشغّل الفيديو: إعادة محاولة بدون واجهة تلجرام ---------------------- */
+window.videoLoadFail=function(){
+  var box=$('detailPlayer');if(!box)return;
+  var v=box.querySelector('video');
+  if(v&&!v._qr){
+    v._qr=1;
+    setTimeout(function(){
+      try{var s=v.getAttribute('src')||'';v.src=s+(s.indexOf('?')>0?'&':'?')+'r='+Date.now();var p=v.play();if(p&&p.catch)p.catch(function(){})}catch(e){}
+    },900);
+    return;
+  }
+  box.innerHTML='<div style="padding:34px 18px;text-align:center;color:var(--muted);line-height:2.1;font-size:14px"><b style="color:var(--text)">تعذر تشغيل الفيديو حالياً</b><br>تأكد من الاتصال وحاول مرة ثانية بعد قليل.</div>';
+};
+
+/* ---------------------- كاش وتحديث: دائماً آخر نسخة ---------------------- */
+function clearAllCaches(){
+  var jobs=[];
+  try{if(window.caches)jobs.push(caches.keys().then(function(ks){return Promise.all(ks.filter(function(k){return k!=='qaqa-meta'&&k!=='qaqa-offline'}).map(function(k){return caches.delete(k)}))}))}catch(e){}
+  return Promise.all(jobs).catch(function(){});
+}
+var lastVC=0;
+function checkVersion(){
+  if(Date.now()-lastVC<60000)return;lastVC=Date.now();
+  fetch('version.json?_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
+    if(!j||!j.build||j.build===BUILD)return;
+    if(sessionStorage.getItem('qaqa_v2_reloaded')===j.build)return;   /* مرة وحدة لكل نسخة (بدون حلقات) */
+    sessionStorage.setItem('qaqa_v2_reloaded',j.build);
+    clearAllCaches().then(function(){location.replace(location.pathname+'?v='+encodeURIComponent(j.build)+location.hash)});
+  }).catch(function(){});
+}
+if('serviceWorker' in navigator){
+  var hadCtl=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.getRegistrations().then(function(rs){
+    rs.forEach(function(r){var s=r.active||r.waiting||r.installing;if(s&&s.scriptURL.indexOf('/sw.js')<0)r.unregister()});   /* أي SW قديم من نسخ سابقة */
+  }).catch(function(){});
+  navigator.serviceWorker.register('sw.js?w='+encodeURIComponent(WORKER)+'&i='+encodeURIComponent(ICON)+'&v='+BUILD).then(function(reg){
+    reg.update().catch(function(){});
+    document.addEventListener('visibilitychange',function(){if(!document.hidden)reg.update().catch(function(){})});
+  }).catch(function(){});
+  navigator.serviceWorker.addEventListener('controllerchange',function(){
+    if(!hadCtl){hadCtl=true;return}                       /* أول تثبيت: لا إعادة تحميل */
+    if(sessionStorage.getItem('qaqa_v2_cc'))return;
+    sessionStorage.setItem('qaqa_v2_cc','1');location.reload();
+  });
+}
+clearAllCaches();
+if(document.readyState==='complete')checkVersion();else window.addEventListener('load',checkVersion);
+setTimeout(tick,1500);
+})();
+
+</script><script id="qaqa-tg-direct">
+/* ===== تشغيل فيديوهات/أناشيد تلجرام من رابط المنشور (بدون Worker وبدون علامات تلجرام) =====
+   1) نجيب رابط الملف المباشر من صفحة المنشور ونشغله بمشغّل الموقع.
+   2) إذا ما زبط، نرجع لمشغّل تلجرام المدمج مقصوص منه الاسم والشعار. */
+(function(){
+'use strict';
+var RE=/(?:t\.me|telegram\.me|telegram\.dog)\/(?:s\/)?(c\/\d+|[A-Za-z0-9_]{4,})\/(\d+)/i;
+function post(it){
+  if(!it)return '';
+  var c=[it.tgUrl,it.url,it.link,it.tgkey&&('https://t.me/'+it.tgkey),it.desc,it.title],i,s,m;
+  for(i=0;i<c.length;i++){
+    s=String(c[i]||'');if(!s)continue;
+    m=s.match(RE);
+    if(!m){try{m=decodeURIComponent(s).match(RE)}catch(e){}}
+    if(!m&&/^[A-Za-z0-9_]{4,}\/\d+$/.test(s))m=[s,s.split('/')[0],s.split('/')[1]];
+    if(m)return m[1]+'/'+m[2];
+  }
+  return '';
+}
+function direct(u){u=String(u||'');return /^https:\/\//i.test(u)&&u.indexOf('workers.dev')<0}
+function embed(p){return 'https://t.me/'+p+'?embed=1&mode=tme'}
+function resolve(p){
+  var f=window.__resolveTG;
+  if(!f)return Promise.resolve(null);
+  return f('https://t.me/'+p).catch(function(){return null});
+}
+
+/* ---------- الفيديو ---------- */
+function fallbackVideo(box,p){
+  box.innerHTML='<iframe src="'+embed(p)+'" style="width:100%;height:100%;border:0;min-height:70vh" allow="autoplay;encrypted-media;fullscreen" allowfullscreen></iframe>';
+}
+function mountVideo(v,p,id){
+  var box=document.getElementById('detailPlayer');if(!box)return;
+  var tok=box.__tgTok=(box.__tgTok||0)+1;
+  resolve(p).then(function(r){
+    if(box.__tgTok!==tok||currentVideoId!==id)return;
+    var src=r&&direct(r.video)?r.video:'';
+    if(!src){fallbackVideo(box,p);return}
+    var poster=(r.thumb&&direct(r.thumb))?r.thumb:(v.thumb||'');
+    box.innerHTML='<video controls autoplay playsinline preload="auto" style="width:100%;height:100%;background:#000;object-fit:contain"></video>';
+    var el=box.firstChild;
+    if(poster)el.setAttribute('poster',poster);
+    el.addEventListener('error',function(){if(box.__tgTok===tok)fallbackVideo(box,p)});
+    el.setAttribute('src',src);
+    var pr=el.play();if(pr&&pr.catch)pr.catch(function(){});
+  });
+}
+var ovf=window.videoLoadFail;
+window.videoLoadFail=function(){
+  var v=null;try{v=videos.find(function(x){return x.id===currentVideoId})}catch(e){}
+  var box=document.getElementById('detailPlayer'),p=post(v);
+  if(box&&p){fallbackVideo(box,p);return}
+  if(ovf)ovf.apply(this,arguments);
+  try{if(box&&v){var d=document.createElement('div');d.dir='ltr';d.style.cssText='font-size:11px;color:var(--muted);padding:0 14px 14px;word-break:break-all;text-align:center';d.textContent='[v20261112-1] '+String(v.url||'').slice(0,200);box.appendChild(d)}}catch(e){}
+};
+var ov=window.openVideoDetail;
+window.openVideoDetail=function(id){
+  var r=ov.apply(this,arguments);
+  try{var v=videos.find(function(x){return x.id===id}),p=post(v);if(p)mountVideo(v,p,id)}catch(e){}
+  return r;
+};
+
+/* ---------- الأناشيد ---------- */
+function fallbackAudio(p){
+  window.__tgDirectAudio=0;
+  var b=document.getElementById('anashidDetailBox');if(!b)return;
+  try{globalAudio.pause();globalAudio.removeAttribute('src')}catch(e){}
+  var hero=b.querySelector('.anashid-hero');
+  if(hero){
+    hero.innerHTML='<iframe src="'+embed(p)+'" scrolling="no" style="width:100%;height:100%;border:0;min-height:0" allow="autoplay;encrypted-media;fullscreen"></iframe>';
+    hero.classList.add('tg');
+  }
+  ['.wave','.progress-bar','.time-row','#mainPlayBtn','#modeBtn'].forEach(function(s){var e=b.querySelector(s);if(e)e.style.display='none'});
+}
+function mountAudio(a,p,id){
+  var tok=window.__tgAT=(window.__tgAT||0)+1;
+  resolve(p).then(function(r){
+    if(window.__tgAT!==tok||currentAnashidId!==id)return;
+    var src=r&&(direct(r.audio)?r.audio:(direct(r.video)?r.video:''));
+    if(!src){fallbackAudio(p);return}
+    window.__tgDirectAudio=1;
+    var clear=function(){window.__tgDirectAudio=0;globalAudio.removeEventListener('loadedmetadata',clear);globalAudio.removeEventListener('error',onerr)};
+    var onerr=function(){clear();if(window.__tgAT===tok)fallbackAudio(p)};
+    globalAudio.addEventListener('loadedmetadata',clear);
+    globalAudio.addEventListener('error',onerr);
+    globalAudio.src=src;
+    try{globalAudio.playbackRate=currentSpeed}catch(e){}
+    var pr=globalAudio.play();if(pr&&pr.catch)pr.catch(function(){});
+  });
+}
+var oa=window.openAnashidDetail;
+window.openAnashidDetail=function(id){
+  window.__tgDirectAudio=0;
+  var r=oa.apply(this,arguments);
+  try{var a=anashid.find(function(x){return x.id===id}),p=post(a);if(p)mountAudio(a,p,id)}catch(e){}
+  return r;
+};
+})();
+</script>
+
 </body></html>

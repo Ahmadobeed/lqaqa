@@ -7,11 +7,13 @@ from telethon.sessions import StringSession
 app = Flask(__name__)
 CORS(app)
 
+# المفاتيح - بتجيبها من Environment بريندر
 API_ID = int(os.environ.get('API_ID', '37646525'))
 API_HASH = os.environ.get('API_HASH', '')
 BOT_TOKEN = os.environ.get('BOT_TOKEN', '')
 
 client = None
+
 async def get_client():
     global client
     if client is None:
@@ -20,9 +22,11 @@ async def get_client():
     return client
 
 def parse_tg_link(url):
+    # رابط خاص متل t.me/c/12345/678
     m = re.search(r't\.me/c/(\d+)/(\d+)', url)
     if m:
         return int("-100" + m.group(1)), int(m.group(2))
+    # رابط عام متل t.me/channel/123
     m2 = re.search(r't\.me/([^/]+)/(\d+)', url)
     if m2:
         return m2.group(1), int(m2.group(2))
@@ -35,9 +39,11 @@ def home():
 @app.route('/stream')
 def stream():
     url = request.args.get('url')
+    if not url:
+        return jsonify({"error": "no url"}), 400
     chat_id, msg_id = parse_tg_link(url)
     if not chat_id:
-        return "bad link", 400
+        return jsonify({"error": "bad link"}), 400
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -51,10 +57,11 @@ def stream():
         data = loop.run_until_complete(run())
         loop.close()
         if not data:
-            return "no media", 404
-        return Response(data, mimetype="video/mp4", headers={'Access-Control-Allow-Origin': '*'})
+            return jsonify({"error": "no media"}), 404
+        return Response(data, mimetype="video/mp4", headers={'Access-Control-Allow-Origin': '*', 'Content-Disposition': 'inline'})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)

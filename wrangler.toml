@@ -1,0 +1,3 @@
+name = "al-qaqa1"
+main = "worker-all.js"
+compatibility_date = "2025-01-01"
